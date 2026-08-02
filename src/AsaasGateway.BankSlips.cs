@@ -1,45 +1,18 @@
 using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Options;
 using Sufficit.Finance;
+using Sufficit.Gateway;
 using System.Globalization;
 using System.Net;
-using System.Net.Http.Headers;
-using System.Net.Http.Json;
 using System.Text.Json;
-using System.Text.Json.Serialization;
 
 namespace Sufficit.Gateway.Asaas;
 
 /// <summary>
-/// Implements Asaas customer and bank slip operations using the official HTTP API.
+/// Exposes the Asaas API. This partial contains customer and bank slip operations.
 /// </summary>
-public sealed class AsaasBankSlipGateway : IBankSlipGateway, IBankSlipProviderDiagnosticsGateway
+public sealed partial class AsaasGateway : IBankSlipGateway, IBankSlipProviderDiagnosticsGateway
 {
-    public const string HttpClientName = "Sufficit.BankSlips.Asaas";
-
-    private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web)
-    {
-        DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull
-    };
-
-    private readonly IHttpClientFactory _httpClientFactory;
-    private readonly IBankSlipCredentialResolver _credentialResolver;
-    private readonly IOptionsMonitor<AsaasBankSlipGatewayOptions> _options;
-    private readonly ILogger<AsaasBankSlipGateway> _logger;
-
-    public AsaasBankSlipGateway(
-        IHttpClientFactory httpClientFactory,
-        IBankSlipCredentialResolver credentialResolver,
-        IOptionsMonitor<AsaasBankSlipGatewayOptions> options,
-        ILogger<AsaasBankSlipGateway> logger)
-    {
-        _httpClientFactory = httpClientFactory;
-        _credentialResolver = credentialResolver;
-        _options = options;
-        _logger = logger;
-    }
-
-    public string ProviderCode => BankSlipProviderCodes.Asaas;
+    public string ProviderCode => ProviderCodeValue;
 
     public async Task<BankSlipProviderDiagnosticGatewayResult?> ExecuteDiagnosticAsync(
         BankSlipProviderDiagnosticParameters parameters,
@@ -357,54 +330,39 @@ public sealed class AsaasBankSlipGateway : IBankSlipGateway, IBankSlipProviderDi
         string? providerChargeId,
         CancellationToken cancellationToken)
     {
-        var credential = await _credentialResolver
-            .GetRequiredAsync(ProviderCode, context, cancellationToken)
-            .ConfigureAwait(false);
-        if (string.IsNullOrWhiteSpace(credential.ApiKey))
+        try
+        {
+            return await SendGatewayAsync(
+                requestFactory,
+                ToGatewayContext(context),
+                cancellationToken).ConfigureAwait(false);
+        }
+        catch (AsaasGatewayException exception) when (
+            string.Equals(exception.ErrorCode, "asaas_credentials_missing", StringComparison.Ordinal))
         {
             throw new BankSlipGatewayException(
                 BankSlipErrorCategory.DefinitiveRejection,
-                "asaas_credentials_missing",
-                "Asaas credentials are not configured for the selected tenant.");
+                exception.ErrorCode,
+                exception.Message,
+                innerException: exception);
         }
-
-        var client = _httpClientFactory.CreateClient(HttpClientName);
-        client.Timeout = _options.CurrentValue.Timeout;
-        using var request = requestFactory();
-        request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
-        request.Headers.TryAddWithoutValidation("access_token", credential.ApiKey);
-        request.Headers.TryAddWithoutValidation("User-Agent", _options.CurrentValue.UserAgent);
-
-        try
+        catch (AsaasGatewayException exception)
         {
-            return await client.SendAsync(
-                request,
-                HttpCompletionOption.ResponseHeadersRead,
-                cancellationToken).ConfigureAwait(false);
-        }
-        catch (OperationCanceledException exception) when (!cancellationToken.IsCancellationRequested)
-        {
-            throw CreateTransportException(operation, "asaas_timeout", providerChargeId, exception);
-        }
-        catch (HttpRequestException exception)
-        {
-            throw CreateTransportException(operation, "asaas_transport_error", providerChargeId, exception);
+            throw CreateTransportException(operation, exception.ErrorCode, providerChargeId, exception);
         }
     }
 
     private Uri BuildUri(BankSlipGatewayContext context, string relativePath)
-    {
-        var options = _options.CurrentValue;
-        var baseAddress = context.Environment == BankSlipProviderEnvironment.Production
-            ? options.ProductionBaseAddress
-            : options.SandboxBaseAddress;
-        return new Uri(baseAddress, relativePath);
-    }
+        => BuildUri(ToGatewayContext(context), relativePath);
 
-    private static HttpRequestMessage CreateJsonRequest(HttpMethod method, Uri uri, object payload)
-        => new(method, uri)
+    private static GatewayCallContext ToGatewayContext(BankSlipGatewayContext context)
+        => new()
         {
-            Content = JsonContent.Create(payload, options: JsonOptions)
+            TenantId = context.TenantId,
+            Environment = context.Environment == BankSlipProviderEnvironment.Production
+                ? GatewayEnvironment.Production
+                : GatewayEnvironment.Sandbox,
+            CredentialReference = context.CredentialReference
         };
 
     private static ProviderBankSlipResult ParsePayment(JsonElement element, string? fallbackChargeId = null)
@@ -419,7 +377,8 @@ public sealed class AsaasBankSlipGateway : IBankSlipGateway, IBankSlipProviderDi
         }
 
         var providerStatus = GetString(element, "status") ?? "UNKNOWN";
-        var urlValue = GetString(element, "bankSlipUrl") ?? GetString(element, "invoiceUrl");
+        var htmlUrl = CreateHttpsUri(GetString(element, "invoiceUrl"));
+        var pdfUrl = CreateHttpsUri(GetString(element, "bankSlipUrl"));
         var customerId = GetString(element, "customer");
 
         return new ProviderBankSlipResult
@@ -428,12 +387,21 @@ public sealed class AsaasBankSlipGateway : IBankSlipGateway, IBankSlipProviderDi
             ChargeId = chargeId,
             ProviderStatus = providerStatus,
             Status = MapStatus(providerStatus),
-            Url = Uri.TryCreate(urlValue, UriKind.Absolute, out var url) ? url : null,
+            HtmlUrl = htmlUrl,
+            PdfUrl = pdfUrl,
+            Url = pdfUrl ?? htmlUrl,
             Attributes = string.IsNullOrWhiteSpace(customerId)
                 ? null
                 : new Dictionary<string, string> { ["asaas.customer_id"] = customerId }
         };
     }
+
+    private static Uri? CreateHttpsUri(string? value)
+        => Uri.TryCreate(value, UriKind.Absolute, out var uri)
+            && uri.Scheme == Uri.UriSchemeHttps
+            && string.IsNullOrEmpty(uri.UserInfo)
+                ? uri
+                : null;
 
     private static BankSlipStatus MapStatus(string providerStatus)
         => providerStatus.ToUpperInvariant() switch
@@ -498,36 +466,6 @@ public sealed class AsaasBankSlipGateway : IBankSlipGateway, IBankSlipProviderDi
             $"Asaas {operation.ToString().ToLowerInvariant()} transport failed.",
             providerChargeId: providerChargeId,
             innerException: exception);
-
-    private static async Task<JsonDocument> ReadJsonAsync(
-        HttpResponseMessage response,
-        CancellationToken cancellationToken)
-    {
-        await using var stream = await response.Content.ReadAsStreamAsync(cancellationToken).ConfigureAwait(false);
-        return await JsonDocument.ParseAsync(stream, cancellationToken: cancellationToken).ConfigureAwait(false);
-    }
-
-    private static async Task<string?> ReadErrorCodeAsync(
-        HttpResponseMessage response,
-        CancellationToken cancellationToken)
-    {
-        try
-        {
-            using var document = await ReadJsonAsync(response, cancellationToken).ConfigureAwait(false);
-            if (document.RootElement.TryGetProperty("errors", out var errors)
-                && errors.ValueKind == JsonValueKind.Array
-                && errors.GetArrayLength() > 0)
-            {
-                return GetString(errors[0], "code");
-            }
-
-            return GetString(document.RootElement, "code");
-        }
-        catch (System.Text.Json.JsonException)
-        {
-            return null;
-        }
-    }
 
     private static JsonElement[] GetDataArray(JsonElement root)
     {

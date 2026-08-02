@@ -3,7 +3,7 @@ using Xunit;
 
 namespace Sufficit.Gateway.Asaas.Tests;
 
-public class AsaasBankSlipGatewayTests
+public class AsaasGatewayBankSlipTests
 {
     [Fact]
     public async Task CreateAsyncPreventsDuplicatesAndUsesSandboxBoletoFlow()
@@ -13,7 +13,7 @@ public class AsaasBankSlipGatewayTests
         handler.EnqueueJson("""{"object":"list","hasMore":false,"data":[]}""");
         handler.EnqueueJson("""{"object":"customer","id":"cus_test","cpfCnpj":"12345678000190"}""");
         handler.EnqueueJson(
-            """{"object":"payment","id":"pay_test","customer":"cus_test","status":"PENDING","externalReference":"8c732677a5ea4f33a8e13dfcdb538411","bankSlipUrl":"https://sandbox.asaas.example/b/pay_test"}""");
+            """{"object":"payment","id":"pay_test","customer":"cus_test","status":"PENDING","externalReference":"8c732677a5ea4f33a8e13dfcdb538411","invoiceUrl":"https://sandbox.asaas.example/i/pay_test","bankSlipUrl":"https://sandbox.asaas.example/b/pay_test.pdf"}""");
         handler.EnqueueJson("""{"identificationField":"0019000009","barCode":"0019000009"}""");
         var gateway = GatewayTestFactory.CreateAsaas(handler);
         var request = CreateIssueRequest();
@@ -23,6 +23,9 @@ public class AsaasBankSlipGatewayTests
         Assert.Equal(BankSlipStatus.Ready, result.Status);
         Assert.Equal("pay_test", result.ChargeId);
         Assert.Equal("0019000009", result.BarCode);
+        Assert.Equal("https://sandbox.asaas.example/i/pay_test", result.HtmlUrl?.AbsoluteUri);
+        Assert.Equal("https://sandbox.asaas.example/b/pay_test.pdf", result.PdfUrl?.AbsoluteUri);
+        Assert.Equal(result.PdfUrl, result.Url);
         Assert.Equal(5, handler.Requests.Count);
         Assert.StartsWith("https://api-sandbox.asaas.com/v3/payments?externalReference=", handler.Requests[0].Uri.AbsoluteUri);
         Assert.StartsWith("https://api-sandbox.asaas.com/v3/customers?cpfCnpj=", handler.Requests[1].Uri.AbsoluteUri);
@@ -33,7 +36,7 @@ public class AsaasBankSlipGatewayTests
         Assert.All(handler.Requests, recorded =>
         {
             Assert.Equal("$aact_hmlg_test", recorded.Headers["access_token"].Single());
-            Assert.Equal("Sufficit-BankSlips.Tests/1.0", recorded.Headers["User-Agent"].Single());
+            Assert.Equal("Sufficit-Gateway-Asaas.Tests/1.0", recorded.Headers["User-Agent"].Single());
         });
     }
 

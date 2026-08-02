@@ -7,18 +7,23 @@ namespace Sufficit.Gateway.Asaas;
 
 public static class ServiceCollectionExtensions
 {
-    public static IServiceCollection AddSufficitAsaasBankSlipGateway(
+    public static IServiceCollection AddSufficitGatewayAsaas(
         this IServiceCollection services,
         IConfiguration configuration)
     {
-        services.AddOptions<AsaasBankSlipGatewayOptions>()
-            .Bind(configuration.GetSection(AsaasBankSlipGatewayOptions.SectionName));
-        services.AddHttpClient(AsaasBankSlipGateway.HttpClientName);
+        services.AddOptions<AsaasGatewayOptions>()
+            .Bind(configuration.GetSection(AsaasGatewayOptions.SectionName));
+        services.AddHttpClient(AsaasGateway.HttpClientName);
 
-        services.TryAddEnumerable(
-            ServiceDescriptor.Singleton<IBankSlipGateway, AsaasBankSlipGateway>());
-        services.TryAddEnumerable(
-            ServiceDescriptor.Singleton<IBankSlipProviderDiagnosticsGateway, AsaasBankSlipGateway>());
+        services.TryAddSingleton<AsaasGateway>();
+        services.AddSingleton<IBankSlipGateway>(
+            serviceProvider => serviceProvider.GetRequiredService<AsaasGateway>());
+        services.AddSingleton<IBankSlipProviderDiagnosticsGateway>(
+            serviceProvider => serviceProvider.GetRequiredService<AsaasGateway>());
+        services.AddSingleton<IGatewayDiagnosticsGateway>(
+            serviceProvider => serviceProvider.GetRequiredService<AsaasGateway>());
+        services.TryAddSingleton<IAsaasInvoiceGateway>(
+            serviceProvider => serviceProvider.GetRequiredService<AsaasGateway>());
 
         return services;
     }

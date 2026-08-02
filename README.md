@@ -1,16 +1,19 @@
 # Sufficit Gateway Asaas
 
-Integração HTTP tipada da Sufficit com a API Asaas para emissão, consulta e
-cancelamento de boletos.
+Integração HTTP tipada da Sufficit com a API Asaas.
 
-O projeto implementa `IBankSlipGateway` e
-`IBankSlipProviderDiagnosticsGateway` para o provider persistido `asaas`.
+`AsaasGateway` é a fachada geral do provedor. As capacidades atuais são
+boletos (`IBankSlipGateway` e `IBankSlipProviderDiagnosticsGateway`) e NFS-e
+(`IAsaasInvoiceGateway`), sempre usando o provider persistido `asaas`.
 
 ## Responsabilidades
 
-- emitir, consultar e cancelar boletos pelo cliente HTTP tipado;
+- compartilhar autenticação, cliente HTTP, configuração e credenciais entre
+  todas as capacidades Asaas;
+- emitir, consultar e cancelar boletos;
 - localizar clientes por CPF/CNPJ antes de criá-los;
 - reconciliar cobranças pela referência externa antes de repetir uma emissão;
+- agendar, consultar, listar, atualizar, autorizar e cancelar NFS-e;
 - normalizar estados e erros próprios do Asaas;
 - oferecer consultas tipadas e somente leitura para a console de diagnóstico.
 
@@ -28,21 +31,23 @@ e à interface administrativa, não ao gateway.
 O host registra o gateway e a infraestrutura neutra separadamente:
 
 ```csharp
-services.AddSufficitBankSlipGatewayInfrastructure(configuration);
-services.AddSufficitAsaasBankSlipGateway(configuration);
+services.AddSufficitGatewayInfrastructure(configuration);
+services.AddSufficitBankSlipInfrastructure(configuration);
+services.AddSufficitGatewayAsaas(configuration);
 ```
 
-As opções HTTP ficam em `BankSlips:Providers:Asaas`:
+As opções e credenciais gerais ficam em `Sufficit:Gateway:Asaas`:
 
 ```json
 {
-  "BankSlips": {
-    "Providers": {
+  "Sufficit": {
+    "Gateway": {
       "Asaas": {
         "SandboxBaseAddress": "https://api-sandbox.asaas.com/v3/",
         "ProductionBaseAddress": "https://api.asaas.com/v3/",
-        "UserAgent": "Sufficit-BankSlips/2.0 (.NET)",
-        "Timeout": "00:00:30"
+        "UserAgent": "Sufficit-Gateway-Asaas/2.0 (.NET)",
+        "Timeout": "00:00:30",
+        "Credentials": {}
       }
     }
   }
@@ -50,8 +55,17 @@ As opções HTTP ficam em `BankSlips:Providers:Asaas`:
 ```
 
 A API key não pertence a este repositório nem ao payload das filas. O host
-resolve uma referência opaca por `IBankSlipCredentialResolver` a partir da
+resolve uma referência opaca por `IGatewayCredentialResolver` a partir da
 configuração protegida.
+
+## NFS-e
+
+`IAsaasInvoiceGateway` cobre os endpoints `/v3/invoices` de listagem,
+consulta, agendamento, atualização, autorização e cancelamento. Os modelos
+mantêm propriedades adicionais do provedor por `JsonExtensionData`, evitando
+perda de dados quando a API evoluir. O objeto tributário permanece tipado como
+JSON porque sua composição depende do regime e do município, inclusive regras
+da NT-007.
 
 ## Validação
 
