@@ -179,7 +179,8 @@ public sealed partial class AsaasGateway : IAsaasInvoiceGateway
         throw new AsaasGatewayException(
             errorCode,
             "Asaas rejected the invoice operation.",
-            statusCode);
+            statusCode,
+            retryAfter: ReadRetryAfter(response));
     }
 
     private static async Task<T> ReadRequiredAsync<T>(

@@ -5,15 +5,32 @@ namespace Sufficit.Gateway.Asaas.Tests;
 
 internal sealed class RecordingHttpMessageHandler : HttpMessageHandler
 {
-    private readonly Queue<Func<HttpRequestMessage, HttpResponseMessage>> _responses = new();
+    private readonly Queue<Func<HttpRequestMessage, CancellationToken, Task<HttpResponseMessage>>> _responses = new();
 
     public IList<RecordedHttpRequest> Requests { get; } = new List<RecordedHttpRequest>();
 
-    public void EnqueueJson(string json, HttpStatusCode statusCode = HttpStatusCode.OK)
-        => _responses.Enqueue(_ => new HttpResponseMessage(statusCode)
+    public void EnqueueJson(
+        string json,
+        HttpStatusCode statusCode = HttpStatusCode.OK,
+        IReadOnlyDictionary<string, string>? headers = null)
+        => EnqueueResponse((_, _) =>
         {
-            Content = new StringContent(json, Encoding.UTF8, "application/json")
+            var response = new HttpResponseMessage(statusCode)
+            {
+                Content = new StringContent(json, Encoding.UTF8, "application/json")
+            };
+            if (headers is not null)
+            {
+                foreach (var header in headers)
+                    response.Headers.TryAddWithoutValidation(header.Key, header.Value);
+            }
+
+            return Task.FromResult(response);
         });
+
+    public void EnqueueResponse(
+        Func<HttpRequestMessage, CancellationToken, Task<HttpResponseMessage>> response)
+        => _responses.Enqueue(response);
 
     protected override async Task<HttpResponseMessage> SendAsync(
         HttpRequestMessage request,
@@ -37,6 +54,6 @@ internal sealed class RecordingHttpMessageHandler : HttpMessageHandler
             throw new InvalidOperationException("No fake HTTP response was configured.");
         }
 
-        return _responses.Dequeue()(request);
+        return await _responses.Dequeue()(request, cancellationToken);
     }
 }

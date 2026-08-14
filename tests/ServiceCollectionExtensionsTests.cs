@@ -24,7 +24,10 @@ public class ServiceCollectionExtensionsTests
 
         Assert.Same(gateway, provider.GetRequiredService<IBankSlipGateway>());
         Assert.Same(gateway, provider.GetRequiredService<IBankSlipProviderDiagnosticsGateway>());
+        Assert.Same(gateway, provider.GetRequiredService<IBankSlipProviderWebhookGateway>());
+        Assert.Same(gateway, provider.GetRequiredService<IAsaasWebhookGateway>());
         Assert.Same(gateway, provider.GetRequiredService<IGatewayDiagnosticsGateway>());
         Assert.Same(gateway, provider.GetRequiredService<IAsaasInvoiceGateway>());
+        Assert.Same(gateway, provider.GetRequiredService<IAsaasRateLimitMonitor>());
     }
 }

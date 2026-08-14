@@ -23,6 +23,7 @@ public sealed partial class AsaasGateway : IGatewayDiagnosticsGateway
             Operation("payments.identification-field", "Boleto", "Consultar linha digitável", "Recupera a identificação bancária de um boleto.", requiresResourceId: true),
             Operation("payments.pix-qrcode", "Pix", "Consultar QR Code Pix", "Recupera o QR Code dinâmico e o código copia e cola.", requiresResourceId: true),
             Operation("pix.keys.list", "Pix", "Listar chaves Pix", "Consulta as chaves Pix cadastradas na conta."),
+            Operation("webhooks.list", "Webhooks", "Listar webhooks", "Audita URLs, eventos e o estado das filas de webhook configuradas."),
             Operation("invoices.list", "Notas fiscais", "Listar notas fiscais", "Retorna uma página de NFS-e cadastradas no Asaas."),
             Operation("invoices.get", "Notas fiscais", "Consultar nota fiscal", "Consulta uma NFS-e pelo ID do Asaas.", requiresResourceId: true),
             Unavailable("payments.create", "Cobranças", "Criar cobrança", "POST", GatewayDiagnosticRisk.ProductionMutation,
@@ -73,6 +74,7 @@ public sealed partial class AsaasGateway : IGatewayDiagnosticsGateway
             "payments.identification-field" => $"payments/{Uri.EscapeDataString(resourceId!)}/identificationField",
             "payments.pix-qrcode" => $"payments/{Uri.EscapeDataString(resourceId!)}/pixQrCode",
             "pix.keys.list" => $"pix/addressKeys?offset={offset.ToString(CultureInfo.InvariantCulture)}&limit={limit.ToString(CultureInfo.InvariantCulture)}",
+            "webhooks.list" => $"webhooks?offset={offset.ToString(CultureInfo.InvariantCulture)}&limit={limit.ToString(CultureInfo.InvariantCulture)}",
             "invoices.list" => $"invoices?offset={offset.ToString(CultureInfo.InvariantCulture)}&limit={limit.ToString(CultureInfo.InvariantCulture)}",
             "invoices.get" => $"invoices/{Uri.EscapeDataString(resourceId!)}",
             _ => throw new InvalidOperationException("The requested Asaas gateway operation is not mapped.")

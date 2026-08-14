@@ -27,6 +27,7 @@ public sealed partial class AsaasGateway
     private readonly IGatewayCredentialResolver _credentialResolver;
     private readonly IOptionsMonitor<AsaasGatewayOptions> _options;
     private readonly ILogger<AsaasGateway> _logger;
+    private readonly AsaasRateLimitCoordinator _rateLimits;
 
     public AsaasGateway(
         IHttpClientFactory httpClientFactory,
@@ -38,6 +39,7 @@ public sealed partial class AsaasGateway
         _credentialResolver = credentialResolver;
         _options = options;
         _logger = logger;
+        _rateLimits = new AsaasRateLimitCoordinator(logger);
     }
 
     private async Task<HttpResponseMessage> SendGatewayAsync(
@@ -45,41 +47,26 @@ public sealed partial class AsaasGateway
         GatewayCallContext context,
         CancellationToken cancellationToken)
     {
-        GatewayCredential credential;
-        try
-        {
-            credential = await _credentialResolver
-                .GetRequiredAsync(ProviderCodeValue, context, cancellationToken)
-                .ConfigureAwait(false);
-        }
-        catch (GatewayCredentialException exception)
-        {
-            throw new AsaasGatewayException(
-                "asaas_credentials_missing",
-                "Asaas credentials are not configured for the selected tenant.",
-                innerException: exception);
-        }
-
-        if (string.IsNullOrWhiteSpace(credential.ApiKey))
-        {
-            throw new AsaasGatewayException(
-                "asaas_credentials_missing",
-                "Asaas credentials are not configured for the selected tenant.");
-        }
+        var credential = await GetRequiredCredentialAsync(context, cancellationToken)
+            .ConfigureAwait(false);
 
         var client = _httpClientFactory.CreateClient(HttpClientName);
-        client.Timeout = _options.CurrentValue.Timeout;
+        var options = _options.CurrentValue;
+        client.Timeout = options.Timeout;
         using var request = requestFactory();
         request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
         request.Headers.TryAddWithoutValidation("access_token", credential.ApiKey);
-        request.Headers.TryAddWithoutValidation("User-Agent", _options.CurrentValue.UserAgent);
+        request.Headers.TryAddWithoutValidation("User-Agent", options.UserAgent);
+        using var admission = _rateLimits.Admit(request.Method, context, options);
 
         try
         {
-            return await client.SendAsync(
+            var response = await client.SendAsync(
                 request,
                 HttpCompletionOption.ResponseHeadersRead,
                 cancellationToken).ConfigureAwait(false);
+            _rateLimits.Observe(request, response, context, options);
+            return response;
         }
         catch (OperationCanceledException exception) when (!cancellationToken.IsCancellationRequested)
         {
@@ -140,5 +127,19 @@ public sealed partial class AsaasGateway
         {
             return null;
         }
+    }
+
+    private static TimeSpan? ReadRetryAfter(HttpResponseMessage response)
+    {
+        var retryAfter = response.Headers.RetryAfter;
+        if (retryAfter?.Delta is { } delta)
+            return delta;
+        if (retryAfter?.Date is { } date)
+        {
+            var remaining = date - DateTimeOffset.UtcNow;
+            return remaining > TimeSpan.Zero ? remaining : null;
+        }
+
+        return null;
     }
 }

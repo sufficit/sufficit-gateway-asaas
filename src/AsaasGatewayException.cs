@@ -10,13 +10,16 @@ public sealed class AsaasGatewayException : Exception
         string errorCode,
         string message,
         int? httpStatusCode = null,
-        Exception? innerException = null)
+        Exception? innerException = null,
+        TimeSpan? retryAfter = null)
         : base(message, innerException)
     {
         ErrorCode = errorCode;
         HttpStatusCode = httpStatusCode;
+        RetryAfter = retryAfter;
     }
 
     public string ErrorCode { get; }
     public int? HttpStatusCode { get; }
+    public TimeSpan? RetryAfter { get; }
 }

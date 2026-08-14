@@ -10,6 +10,7 @@ internal sealed class StaticGatewayCredentialResolver : IGatewayCredentialResolv
         CancellationToken cancellationToken)
         => Task.FromResult(new GatewayCredential
         {
-            ApiKey = "$aact_hmlg_test"
+            ApiKey = "$aact_hmlg_test",
+            WebhookSecret = "0123456789abcdef0123456789abcdef"
         });
 }

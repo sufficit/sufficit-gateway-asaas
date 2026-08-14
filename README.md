@@ -15,6 +15,8 @@ boletos (`IBankSlipGateway` e `IBankSlipProviderDiagnosticsGateway`) e NFS-e
 - reconciliar cobranças pela referência externa antes de repetir uma emissão;
 - agendar, consultar, listar, atualizar, autorizar e cancelar NFS-e;
 - normalizar estados e erros próprios do Asaas;
+- limitar a concorrência de `GET`, manter uma reserva local da cota e observar
+  os cabeçalhos dinâmicos `RateLimit-*`;
 - oferecer consultas tipadas e somente leitura para a console de diagnóstico.
 
 ## Idempotência e segurança
@@ -47,6 +49,10 @@ As opções e credenciais gerais ficam em `Sufficit:Gateway:Asaas`:
         "ProductionBaseAddress": "https://api.asaas.com/v3/",
         "UserAgent": "Sufficit-Gateway-Asaas/2.0 (.NET)",
         "Timeout": "00:00:30",
+        "MaxConcurrentGetRequests": 40,
+        "QuotaLimit": 25000,
+        "QuotaReserve": 5000,
+        "EnforceLocalQuotaLimit": true,
         "Credentials": {}
       }
     }
@@ -57,6 +63,26 @@ As opções e credenciais gerais ficam em `Sufficit:Gateway:Asaas`:
 A API key não pertence a este repositório nem ao payload das filas. O host
 resolve uma referência opaca por `IGatewayCredentialResolver` a partir da
 configuração protegida.
+
+## Limites da API
+
+O pipeline HTTP central conta cada chamada realmente admitida e impede que uma
+instância ultrapasse 40 consultas `GET` simultâneas. A janela local permite
+20.000 chamadas por credencial a cada 12 horas com a configuração padrão,
+reservando 5.000 das 25.000 documentadas pelo Asaas para outros consumidores.
+
+Após cada resposta, `RateLimit-Limit`, `RateLimit-Remaining`,
+`RateLimit-Reset` e `Retry-After` atualizam um bloqueio preventivo. Respostas
+`429`, ou `403` acompanhadas de reset, suspendem novas chamadas antes de chegar
+ao provedor. `IAsaasRateLimitMonitor` expõe o estado observado, o consumo local
+e o tempo de nova tentativa.
+
+A cota local é deliberadamente identificada como estimativa: ela não enxerga
+outros processos, o n8n ou chamadas manuais da mesma conta e reinicia junto com
+o processo. Coordenação exata entre instâncias exige um armazenamento atômico
+compartilhado (por exemplo, Redis) implementado no host/worker.
+
+Referência: [limites oficiais da API Asaas](https://docs.asaas.com/reference/rate-e-quota-limit).
 
 ## NFS-e
 

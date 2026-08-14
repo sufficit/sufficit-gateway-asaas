@@ -377,6 +377,10 @@ public sealed partial class AsaasGateway : IBankSlipGateway, IBankSlipProviderDi
         }
 
         var providerStatus = GetString(element, "status") ?? "UNKNOWN";
+        var settledValue = TryGetDecimal(element, "value");
+        var paidAtUtc = TryGetDateTimeUtc(element, "clientPaymentDate")
+            ?? TryGetDateTimeUtc(element, "paymentDate")
+            ?? TryGetDateTimeUtc(element, "confirmedDate");
         var htmlUrl = CreateHttpsUri(GetString(element, "invoiceUrl"));
         var pdfUrl = CreateHttpsUri(GetString(element, "bankSlipUrl"));
         var customerId = GetString(element, "customer");
@@ -387,6 +391,8 @@ public sealed partial class AsaasGateway : IBankSlipGateway, IBankSlipProviderDi
             ChargeId = chargeId,
             ProviderStatus = providerStatus,
             Status = MapStatus(providerStatus),
+            SettledValue = settledValue,
+            PaidAtUtc = paidAtUtc,
             HtmlUrl = htmlUrl,
             PdfUrl = pdfUrl,
             Url = pdfUrl ?? htmlUrl,
