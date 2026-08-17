@@ -14,6 +14,8 @@ boletos (`IBankSlipGateway` e `IBankSlipProviderDiagnosticsGateway`) e NFS-e
 - localizar clientes por CPF/CNPJ antes de criá-los;
 - reconciliar cobranças pela referência externa antes de repetir uma emissão;
 - agendar, consultar, listar, atualizar, autorizar e cancelar NFS-e;
+- autenticar e interpretar webhooks de NFS-e por `asaas-access-token`;
+- consultar o cliente da nota e baixar XML/PDF somente de hosts permitidos;
 - normalizar estados e erros próprios do Asaas;
 - limitar a concorrência de `GET`, manter uma reserva local da cota e observar
   os cabeçalhos dinâmicos `RateLimit-*`;
@@ -92,6 +94,12 @@ mantêm propriedades adicionais do provedor por `JsonExtensionData`, evitando
 perda de dados quando a API evoluir. O objeto tributário permanece tipado como
 JSON porque sua composição depende do regime e do município, inclusive regras
 da NT-007.
+
+`IAsaasInvoiceWebhookGateway` valida o segredo protegido e interpreta eventos
+sem acoplar o host HTTP ao vocabulário do provedor. O conjunto mínimo usado na
+importação é `INVOICE_AUTHORIZED` e `INVOICE_CANCELED`. O download de documentos
+recusa HTTP, loopback, credenciais na URL e hosts fora de
+`InvoiceDocumentHosts`; a API key não é enviada ao Nota Gateway.
 
 ## Validação
 

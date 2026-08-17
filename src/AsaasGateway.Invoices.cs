@@ -7,6 +7,88 @@ namespace Sufficit.Gateway.Asaas;
 
 public sealed partial class AsaasGateway : IAsaasInvoiceGateway
 {
+    public async Task<AsaasCustomer?> GetCustomerAsync(
+        string customerId,
+        GatewayCallContext context,
+        CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(customerId))
+            throw new ArgumentException("A customer id is required.", nameof(customerId));
+        ValidateContext(context);
+
+        using var response = await SendGatewayAsync(
+            () => new HttpRequestMessage(
+                HttpMethod.Get,
+                BuildUri(context, $"customers/{Uri.EscapeDataString(customerId.Trim())}")),
+            context,
+            cancellationToken).ConfigureAwait(false);
+        if (response.StatusCode == HttpStatusCode.NotFound)
+            return null;
+
+        await EnsureInvoiceSuccessAsync(response, cancellationToken).ConfigureAwait(false);
+        return await ReadRequiredAsync<AsaasCustomer>(response, cancellationToken).ConfigureAwait(false);
+    }
+
+    public async Task<AsaasInvoiceDocument> DownloadDocumentAsync(
+        Uri documentUrl,
+        CancellationToken cancellationToken)
+    {
+        ValidateInvoiceDocumentUrl(documentUrl);
+        var options = _options.CurrentValue;
+        var client = _httpClientFactory.CreateClient(HttpClientName);
+        client.Timeout = options.Timeout;
+        using var request = new HttpRequestMessage(HttpMethod.Get, documentUrl);
+        request.Headers.TryAddWithoutValidation("User-Agent", options.UserAgent);
+        using var response = await client.SendAsync(
+            request,
+            HttpCompletionOption.ResponseHeadersRead,
+            cancellationToken).ConfigureAwait(false);
+        if (!response.IsSuccessStatusCode)
+        {
+            throw new AsaasGatewayException(
+                $"asaas_invoice_document_http_{(int)response.StatusCode}",
+                "The invoice document could not be downloaded.",
+                (int)response.StatusCode,
+                retryAfter: ReadRetryAfter(response));
+        }
+
+        var maximumBytes = Math.Max(1024, options.MaxInvoiceDocumentBytes);
+        if (response.Content.Headers.ContentLength is > 0
+            && response.Content.Headers.ContentLength > maximumBytes)
+        {
+            throw new AsaasGatewayException(
+                "asaas_invoice_document_too_large",
+                "The invoice document exceeds the configured size limit.");
+        }
+
+        await using var source = await response.Content
+            .ReadAsStreamAsync(cancellationToken)
+            .ConfigureAwait(false);
+        using var destination = new MemoryStream();
+        var buffer = new byte[81920];
+        while (true)
+        {
+            var read = await source.ReadAsync(buffer, cancellationToken).ConfigureAwait(false);
+            if (read == 0)
+                break;
+            if (destination.Length + read > maximumBytes)
+            {
+                throw new AsaasGatewayException(
+                    "asaas_invoice_document_too_large",
+                    "The invoice document exceeds the configured size limit.");
+            }
+            await destination.WriteAsync(buffer.AsMemory(0, read), cancellationToken)
+                .ConfigureAwait(false);
+        }
+
+        return new AsaasInvoiceDocument
+        {
+            Content = destination.ToArray(),
+            ContentType = response.Content.Headers.ContentType?.MediaType
+                ?? "application/octet-stream"
+        };
+    }
+
     public async Task<AsaasInvoicePage> ListInvoicesAsync(
         AsaasInvoiceSearchParameters parameters,
         GatewayCallContext context,
@@ -151,6 +233,26 @@ public sealed partial class AsaasGateway : IAsaasInvoiceGateway
             "&",
             values.Select(value =>
                 $"{Uri.EscapeDataString(value.Key)}={Uri.EscapeDataString(value.Value)}"));
+    }
+
+    private void ValidateInvoiceDocumentUrl(Uri documentUrl)
+    {
+        ArgumentNullException.ThrowIfNull(documentUrl);
+        if (!documentUrl.IsAbsoluteUri
+            || !string.Equals(documentUrl.Scheme, Uri.UriSchemeHttps, StringComparison.OrdinalIgnoreCase)
+            || !string.IsNullOrEmpty(documentUrl.UserInfo)
+            || documentUrl.IsLoopback)
+        {
+            throw new ArgumentException("A public HTTPS invoice document URL is required.", nameof(documentUrl));
+        }
+
+        var allowed = _options.CurrentValue.InvoiceDocumentHosts
+            .Where(value => !string.IsNullOrWhiteSpace(value))
+            .Select(value => value.Trim().TrimStart('.'))
+            .Any(value => string.Equals(documentUrl.Host, value, StringComparison.OrdinalIgnoreCase)
+                || documentUrl.Host.EndsWith('.' + value, StringComparison.OrdinalIgnoreCase));
+        if (!allowed)
+            throw new ArgumentException("The invoice document host is not allowed.", nameof(documentUrl));
     }
 
     private static void AddQueryValue(

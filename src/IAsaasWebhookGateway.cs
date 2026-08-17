@@ -65,6 +65,12 @@ public sealed class AsaasWebhookSubscription
 /// </summary>
 public static class AsaasWebhookEventSets
 {
+    public static IReadOnlyCollection<string> InvoiceLifecycle { get; } = new[]
+    {
+        "INVOICE_AUTHORIZED",
+        "INVOICE_CANCELED"
+    };
+
     public static IReadOnlyCollection<string> BankSlipLifecycle { get; } = new[]
     {
         "PAYMENT_CREATED",

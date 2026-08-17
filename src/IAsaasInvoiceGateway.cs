@@ -7,6 +7,15 @@ namespace Sufficit.Gateway.Asaas;
 /// </summary>
 public interface IAsaasInvoiceGateway
 {
+    Task<AsaasCustomer?> GetCustomerAsync(
+        string customerId,
+        GatewayCallContext context,
+        CancellationToken cancellationToken);
+
+    Task<AsaasInvoiceDocument> DownloadDocumentAsync(
+        Uri documentUrl,
+        CancellationToken cancellationToken);
+
     Task<AsaasInvoicePage> ListInvoicesAsync(
         AsaasInvoiceSearchParameters parameters,
         GatewayCallContext context,
