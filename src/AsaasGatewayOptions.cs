@@ -39,4 +39,17 @@ public sealed class AsaasGatewayOptions
     public TimeSpan ConcurrentLimitBackoff { get; set; } = TimeSpan.FromSeconds(2);
     public TimeSpan MaximumProviderBackoff { get; set; } = TimeSpan.FromHours(12);
     public int LowRateLimitRemainingThreshold { get; set; } = 10;
+
+    /// <summary>
+    /// Hosts accepted for document URLs delivered in invoice webhooks. The
+    /// gateway refuses arbitrary URLs to avoid turning the worker into an SSRF
+    /// proxy. Subdomains of an allowed host are accepted.
+    /// </summary>
+    public string[] InvoiceDocumentHosts { get; set; } =
+    [
+        "api.notagateway.com.br",
+        "www.asaas.com"
+    ];
+
+    public long MaxInvoiceDocumentBytes { get; set; } = 20 * 1024 * 1024;
 }

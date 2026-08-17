@@ -54,6 +54,27 @@ public sealed class AsaasInvoice
     public IDictionary<string, JsonElement>? AdditionalProperties { get; set; }
 }
 
+public sealed class AsaasCustomer
+{
+    [JsonPropertyName("id")]
+    public string Id { get; set; } = string.Empty;
+
+    [JsonPropertyName("cpfCnpj")]
+    public string? Document { get; set; }
+
+    [JsonPropertyName("name")]
+    public string? Name { get; set; }
+
+    [JsonExtensionData]
+    public IDictionary<string, JsonElement>? AdditionalProperties { get; set; }
+}
+
+public sealed class AsaasInvoiceDocument
+{
+    public byte[] Content { get; set; } = Array.Empty<byte>();
+    public string ContentType { get; set; } = "application/octet-stream";
+}
+
 public sealed class AsaasInvoicePage
 {
     [JsonPropertyName("object")]

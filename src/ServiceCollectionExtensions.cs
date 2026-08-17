@@ -26,6 +26,8 @@ public static class ServiceCollectionExtensions
             serviceProvider => serviceProvider.GetRequiredService<AsaasGateway>());
         services.TryAddSingleton<IAsaasInvoiceGateway>(
             serviceProvider => serviceProvider.GetRequiredService<AsaasGateway>());
+        services.TryAddSingleton<IAsaasInvoiceWebhookGateway>(
+            serviceProvider => serviceProvider.GetRequiredService<AsaasGateway>());
         services.TryAddSingleton<IAsaasWebhookGateway>(
             serviceProvider => serviceProvider.GetRequiredService<AsaasGateway>());
         services.TryAddSingleton<IAsaasRateLimitMonitor>(
