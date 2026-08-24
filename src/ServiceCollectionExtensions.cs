@@ -22,6 +22,8 @@ public static class ServiceCollectionExtensions
             serviceProvider => serviceProvider.GetRequiredService<AsaasGateway>());
         services.AddSingleton<IBankSlipProviderWebhookGateway>(
             serviceProvider => serviceProvider.GetRequiredService<AsaasGateway>());
+        services.AddSingleton<IPixPaymentGateway>(
+            serviceProvider => serviceProvider.GetRequiredService<AsaasGateway>());
         services.AddSingleton<IGatewayDiagnosticsGateway>(
             serviceProvider => serviceProvider.GetRequiredService<AsaasGateway>());
         services.TryAddSingleton<IAsaasInvoiceGateway>(
@@ -29,6 +31,8 @@ public static class ServiceCollectionExtensions
         services.TryAddSingleton<IAsaasInvoiceWebhookGateway>(
             serviceProvider => serviceProvider.GetRequiredService<AsaasGateway>());
         services.TryAddSingleton<IAsaasWebhookGateway>(
+            serviceProvider => serviceProvider.GetRequiredService<AsaasGateway>());
+        services.TryAddSingleton<IAsaasCheckoutGateway>(
             serviceProvider => serviceProvider.GetRequiredService<AsaasGateway>());
         services.TryAddSingleton<IAsaasRateLimitMonitor>(
             serviceProvider => serviceProvider.GetRequiredService<AsaasGateway>());

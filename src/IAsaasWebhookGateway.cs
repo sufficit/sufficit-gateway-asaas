@@ -65,13 +65,21 @@ public sealed class AsaasWebhookSubscription
 /// </summary>
 public static class AsaasWebhookEventSets
 {
+    public static IReadOnlyCollection<string> CheckoutLifecycle { get; } = new[]
+    {
+        "CHECKOUT_CREATED",
+        "CHECKOUT_CANCELED",
+        "CHECKOUT_EXPIRED",
+        "CHECKOUT_PAID"
+    };
+
     public static IReadOnlyCollection<string> InvoiceLifecycle { get; } = new[]
     {
         "INVOICE_AUTHORIZED",
         "INVOICE_CANCELED"
     };
 
-    public static IReadOnlyCollection<string> BankSlipLifecycle { get; } = new[]
+    public static IReadOnlyCollection<string> PaymentLifecycle { get; } = new[]
     {
         "PAYMENT_CREATED",
         "PAYMENT_UPDATED",
@@ -87,4 +95,6 @@ public static class AsaasWebhookEventSets
         "PAYMENT_RECEIVED_IN_CASH_UNDONE",
         "PAYMENT_BANK_SLIP_CANCELLED"
     };
+
+    public static IReadOnlyCollection<string> BankSlipLifecycle => PaymentLifecycle;
 }

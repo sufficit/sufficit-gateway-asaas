@@ -189,6 +189,13 @@ public sealed partial class AsaasGateway : IBankSlipGateway, IBankSlipProviderDi
         BankSlipGatewayContext context,
         CancellationToken cancellationToken)
     {
+        var suppliedId = request.Payer.ProviderCustomerId?.Trim();
+        if (!string.IsNullOrEmpty(suppliedId))
+        {
+            ValidateBankSlipProviderCustomerId(suppliedId);
+            return suppliedId;
+        }
+
         var document = OnlyDigits(request.Payer.Document);
         var externalReference = request.ContextId.ToString("N");
         var query = $"customers?cpfCnpj={Uri.EscapeDataString(document)}&externalReference={Uri.EscapeDataString(externalReference)}&limit=2";
@@ -318,8 +325,10 @@ public sealed partial class AsaasGateway : IBankSlipGateway, IBankSlipProviderDi
             cancellationToken).ConfigureAwait(false);
         await EnsureSuccessAsync(response, BankSlipOperation.Query, result.ChargeId, cancellationToken).ConfigureAwait(false);
         using var document = await ReadJsonAsync(response, cancellationToken).ConfigureAwait(false);
-        result.BarCode = GetString(document.RootElement, "identificationField")
-            ?? GetString(document.RootElement, "barCode");
+        var identificationField = GetString(document.RootElement, "identificationField");
+        var barCode = GetString(document.RootElement, "barCode");
+        result.IdentificationField = identificationField ?? barCode;
+        result.BarCode = barCode ?? identificationField;
         return result;
     }
 
@@ -534,6 +543,13 @@ public sealed partial class AsaasGateway : IBankSlipGateway, IBankSlipProviderDi
             throw new ArgumentOutOfRangeException(nameof(request), "Bank slip value must be positive.");
         }
 
+        var suppliedCustomerId = request.Payer.ProviderCustomerId?.Trim();
+        if (!string.IsNullOrEmpty(suppliedCustomerId))
+        {
+            ValidateBankSlipProviderCustomerId(suppliedCustomerId);
+            return;
+        }
+
         var documentLength = OnlyDigits(request.Payer.Document).Length;
         if (documentLength != 11 && documentLength != 14)
         {
@@ -543,6 +559,16 @@ public sealed partial class AsaasGateway : IBankSlipGateway, IBankSlipProviderDi
         if (string.IsNullOrWhiteSpace(request.Payer.Name))
         {
             throw new ArgumentException("Payer name is required.", nameof(request));
+        }
+    }
+
+    private static void ValidateBankSlipProviderCustomerId(string value)
+    {
+        if (value.Length > 100
+            || !value.StartsWith("cus_", StringComparison.Ordinal)
+            || value.Any(character => !(char.IsAsciiLetterOrDigit(character) || character == '_')))
+        {
+            throw new ArgumentException("The mapped bank slip customer identifier is invalid.", nameof(value));
         }
     }
 

@@ -14,7 +14,7 @@ public class AsaasGatewayBankSlipTests
         handler.EnqueueJson("""{"object":"customer","id":"cus_test","cpfCnpj":"12345678000190"}""");
         handler.EnqueueJson(
             """{"object":"payment","id":"pay_test","customer":"cus_test","status":"PENDING","externalReference":"8c732677a5ea4f33a8e13dfcdb538411","invoiceUrl":"https://sandbox.asaas.example/i/pay_test","bankSlipUrl":"https://sandbox.asaas.example/b/pay_test.pdf"}""");
-        handler.EnqueueJson("""{"identificationField":"0019000009","barCode":"0019000009"}""");
+        handler.EnqueueJson("""{"identificationField":"0019000009","barCode":"00193373700000001000500940144816060680935031"}""");
         var gateway = GatewayTestFactory.CreateAsaas(handler);
         var request = CreateIssueRequest();
 
@@ -22,7 +22,8 @@ public class AsaasGatewayBankSlipTests
 
         Assert.Equal(BankSlipStatus.Ready, result.Status);
         Assert.Equal("pay_test", result.ChargeId);
-        Assert.Equal("0019000009", result.BarCode);
+        Assert.Equal("0019000009", result.IdentificationField);
+        Assert.Equal("00193373700000001000500940144816060680935031", result.BarCode);
         Assert.Equal("https://sandbox.asaas.example/i/pay_test", result.HtmlUrl?.AbsoluteUri);
         Assert.Equal("https://sandbox.asaas.example/b/pay_test.pdf", result.PdfUrl?.AbsoluteUri);
         Assert.Equal(result.PdfUrl, result.Url);
@@ -54,6 +55,26 @@ public class AsaasGatewayBankSlipTests
         Assert.Equal("pay_existing", result.ChargeId);
         Assert.Equal(2, handler.Requests.Count);
         Assert.DoesNotContain(handler.Requests, request => request.Method == HttpMethod.Post);
+    }
+
+    [Fact]
+    public async Task CreateAsyncUsesMappedCustomerWithoutCopyingPayerData()
+    {
+        var handler = new RecordingHttpMessageHandler();
+        handler.EnqueueJson("""{"object":"list","hasMore":false,"data":[]}""");
+        handler.EnqueueJson(
+            """{"object":"payment","id":"pay_test","customer":"cus_mapped","status":"PENDING","externalReference":"8c732677a5ea4f33a8e13dfcdb538411","bankSlipUrl":"https://sandbox.asaas.example/b/pay_test.pdf"}""");
+        handler.EnqueueJson("""{"identificationField":"0019000009","barCode":"0019000009"}""");
+        var gateway = GatewayTestFactory.CreateAsaas(handler);
+        var request = CreateIssueRequest();
+        request.Payer = new BankSlipPayerSnapshot { ProviderCustomerId = "cus_mapped" };
+
+        var result = await gateway.CreateAsync(request, CreateContext(), CancellationToken.None);
+
+        Assert.Equal("pay_test", result.ChargeId);
+        Assert.Equal(3, handler.Requests.Count);
+        Assert.DoesNotContain(handler.Requests, recorded => recorded.Uri.AbsolutePath.Contains("/customers", StringComparison.Ordinal));
+        Assert.Contains("\"customer\":\"cus_mapped\"", handler.Requests[1].Body);
     }
 
     [Fact]

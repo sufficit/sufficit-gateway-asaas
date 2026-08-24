@@ -25,6 +25,20 @@ public sealed partial class AsaasGateway : IBankSlipProviderWebhookGateway
         ArgumentNullException.ThrowIfNull(requestHeaders);
         ArgumentNullException.ThrowIfNull(context);
 
+        return await AuthenticateWebhookCoreAsync(
+            requestHeaders,
+            ToGatewayContext(context),
+            cancellationToken).ConfigureAwait(false);
+    }
+
+    private async Task<bool> AuthenticateWebhookCoreAsync(
+        IReadOnlyDictionary<string, string> requestHeaders,
+        GatewayCallContext context,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(requestHeaders);
+        ArgumentNullException.ThrowIfNull(context);
+
         var presentedSecret = requestHeaders
             .FirstOrDefault(item => string.Equals(
                 item.Key,
@@ -38,7 +52,7 @@ public sealed partial class AsaasGateway : IBankSlipProviderWebhookGateway
         try
         {
             credential = await _credentialResolver
-                .GetRequiredAsync(ProviderCodeValue, ToGatewayContext(context), cancellationToken)
+                .GetRequiredAsync(ProviderCodeValue, context, cancellationToken)
                 .ConfigureAwait(false);
         }
         catch (GatewayCredentialException)

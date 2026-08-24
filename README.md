@@ -3,13 +3,17 @@
 Integração HTTP tipada da Sufficit com a API Asaas.
 
 `AsaasGateway` é a fachada geral do provedor. As capacidades atuais são
-boletos (`IBankSlipGateway` e `IBankSlipProviderDiagnosticsGateway`) e NFS-e
-(`IAsaasInvoiceGateway`), sempre usando o provider persistido `asaas`.
+Checkout hospedado (`IAsaasCheckoutGateway`), boletos (`IBankSlipGateway` e
+`IBankSlipProviderDiagnosticsGateway`) e NFS-e (`IAsaasInvoiceGateway`), sempre
+usando o provider persistido `asaas`.
 
 ## Responsabilidades
 
 - compartilhar autenticação, cliente HTTP, configuração e credenciais entre
   todas as capacidades Asaas;
+- criar sessões hospedadas para PIX/cartão e interpretar seu ciclo de webhooks;
+- consultar a identidade comercial da conta para validar o beneficiário antes
+  de aceitar pagamentos;
 - emitir, consultar e cancelar boletos;
 - localizar clientes por CPF/CNPJ antes de criá-los;
 - reconciliar cobranças pela referência externa antes de repetir uma emissão;
@@ -100,6 +104,18 @@ sem acoplar o host HTTP ao vocabulário do provedor. O conjunto mínimo usado na
 importação é `INVOICE_AUTHORIZED` e `INVOICE_CANCELED`. O download de documentos
 recusa HTTP, loopback, credenciais na URL e hosts fora de
 `InvoiceDocumentHosts`; a API key não é enviada ao Nota Gateway.
+
+## Checkout hospedado
+
+`IAsaasCheckoutGateway` cria cobranças avulsas em `/v3/checkouts`, aceita
+somente callbacks HTTPS, valida que o link retornado pertence a `asaas.com` e
+mantém o `externalReference` do pedido. O parser aceita apenas
+`CHECKOUT_CREATED`, `CHECKOUT_CANCELED`, `CHECKOUT_EXPIRED` e `CHECKOUT_PAID`,
+ignorando atributos novos do payload. A autenticação de entrada compara o
+segredo protegido do header `asaas-access-token` em tempo constante.
+
+`GetAccountAsync` consulta `/v3/myAccount/commercialInfo/` para que o host
+confira o CPF/CNPJ associado à credencial antes de habilitar a cobrança.
 
 ## Validação
 
