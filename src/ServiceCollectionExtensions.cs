@@ -28,6 +28,10 @@ public static class ServiceCollectionExtensions
             serviceProvider => serviceProvider.GetRequiredService<AsaasGateway>());
         services.TryAddSingleton<IAsaasInvoiceGateway>(
             serviceProvider => serviceProvider.GetRequiredService<AsaasGateway>());
+        services.TryAddSingleton<IAsaasPaymentGateway>(
+            serviceProvider => serviceProvider.GetRequiredService<AsaasGateway>());
+        services.TryAddSingleton<IAsaasCustomerGateway>(
+            serviceProvider => serviceProvider.GetRequiredService<AsaasGateway>());
         services.TryAddSingleton<IAsaasInvoiceWebhookGateway>(
             serviceProvider => serviceProvider.GetRequiredService<AsaasGateway>());
         services.TryAddSingleton<IAsaasWebhookGateway>(

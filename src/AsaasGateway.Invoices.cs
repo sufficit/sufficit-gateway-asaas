@@ -25,7 +25,7 @@ public sealed partial class AsaasGateway : IAsaasInvoiceGateway
         if (response.StatusCode == HttpStatusCode.NotFound)
             return null;
 
-        await EnsureInvoiceSuccessAsync(response, cancellationToken).ConfigureAwait(false);
+        await EnsureSuccessAsync(response, "invoice", cancellationToken).ConfigureAwait(false);
         return await ReadRequiredAsync<AsaasCustomer>(response, cancellationToken).ConfigureAwait(false);
     }
 
@@ -112,7 +112,7 @@ public sealed partial class AsaasGateway : IAsaasInvoiceGateway
             () => new HttpRequestMessage(HttpMethod.Get, BuildUri(context, query)),
             context,
             cancellationToken).ConfigureAwait(false);
-        await EnsureInvoiceSuccessAsync(response, cancellationToken).ConfigureAwait(false);
+        await EnsureSuccessAsync(response, "invoice", cancellationToken).ConfigureAwait(false);
         return await ReadRequiredAsync<AsaasInvoicePage>(response, cancellationToken).ConfigureAwait(false);
     }
 
@@ -135,7 +135,7 @@ public sealed partial class AsaasGateway : IAsaasInvoiceGateway
             return null;
         }
 
-        await EnsureInvoiceSuccessAsync(response, cancellationToken).ConfigureAwait(false);
+        await EnsureSuccessAsync(response, "invoice", cancellationToken).ConfigureAwait(false);
         return await ReadRequiredAsync<AsaasInvoice>(response, cancellationToken).ConfigureAwait(false);
     }
 
@@ -151,7 +151,7 @@ public sealed partial class AsaasGateway : IAsaasInvoiceGateway
             () => CreateJsonRequest(HttpMethod.Post, BuildUri(context, "invoices"), request),
             context,
             cancellationToken).ConfigureAwait(false);
-        await EnsureInvoiceSuccessAsync(response, cancellationToken).ConfigureAwait(false);
+        await EnsureSuccessAsync(response, "invoice", cancellationToken).ConfigureAwait(false);
         return await ReadRequiredAsync<AsaasInvoice>(response, cancellationToken).ConfigureAwait(false);
     }
 
@@ -172,7 +172,7 @@ public sealed partial class AsaasGateway : IAsaasInvoiceGateway
                 request),
             context,
             cancellationToken).ConfigureAwait(false);
-        await EnsureInvoiceSuccessAsync(response, cancellationToken).ConfigureAwait(false);
+        await EnsureSuccessAsync(response, "invoice", cancellationToken).ConfigureAwait(false);
         return await ReadRequiredAsync<AsaasInvoice>(response, cancellationToken).ConfigureAwait(false);
     }
 
@@ -190,7 +190,7 @@ public sealed partial class AsaasGateway : IAsaasInvoiceGateway
                 BuildUri(context, $"invoices/{Uri.EscapeDataString(invoiceId)}/authorize")),
             context,
             cancellationToken).ConfigureAwait(false);
-        await EnsureInvoiceSuccessAsync(response, cancellationToken).ConfigureAwait(false);
+        await EnsureSuccessAsync(response, "invoice", cancellationToken).ConfigureAwait(false);
         return await ReadRequiredAsync<AsaasInvoice>(response, cancellationToken).ConfigureAwait(false);
     }
 
@@ -211,7 +211,7 @@ public sealed partial class AsaasGateway : IAsaasInvoiceGateway
                 request),
             context,
             cancellationToken).ConfigureAwait(false);
-        await EnsureInvoiceSuccessAsync(response, cancellationToken).ConfigureAwait(false);
+        await EnsureSuccessAsync(response, "invoice", cancellationToken).ConfigureAwait(false);
         return await ReadRequiredAsync<AsaasInvoice>(response, cancellationToken).ConfigureAwait(false);
     }
 
@@ -266,8 +266,9 @@ public sealed partial class AsaasGateway : IAsaasInvoiceGateway
         }
     }
 
-    private static async Task EnsureInvoiceSuccessAsync(
+    private static async Task EnsureSuccessAsync(
         HttpResponseMessage response,
+        string operationLabel,
         CancellationToken cancellationToken)
     {
         if (response.IsSuccessStatusCode)
@@ -280,7 +281,7 @@ public sealed partial class AsaasGateway : IAsaasInvoiceGateway
             ?? $"asaas_http_{statusCode}";
         throw new AsaasGatewayException(
             errorCode,
-            "Asaas rejected the invoice operation.",
+            $"Asaas rejected the {operationLabel} operation.",
             statusCode,
             retryAfter: ReadRetryAfter(response));
     }
