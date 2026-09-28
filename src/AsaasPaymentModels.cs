@@ -116,6 +116,9 @@ public sealed class AsaasPaymentCreateRequest
     [JsonPropertyName("externalReference")]
     public string? ExternalReference { get; set; }
 
+    [JsonPropertyName("callback")]
+    public AsaasPaymentCallback? Callback { get; set; }
+
     [JsonPropertyName("installmentCount")]
     public int? InstallmentCount { get; set; }
 
@@ -127,6 +130,55 @@ public sealed class AsaasPaymentCreateRequest
 
     [JsonExtensionData]
     public IDictionary<string, JsonElement>? AdditionalProperties { get; set; }
+}
+
+/// <summary>Transient card data for paying an existing Asaas charge. Never persist or log.</summary>
+public sealed class AsaasCreditCardPaymentRequest
+{
+    [JsonPropertyName("creditCard")]
+    public AsaasCreditCard CreditCard { get; set; } = null!;
+
+    [JsonPropertyName("creditCardHolderInfo")]
+    public AsaasCreditCardHolderInfo CreditCardHolderInfo { get; set; } = null!;
+}
+
+public sealed class AsaasCreditCard
+{
+    [JsonPropertyName("holderName")]
+    public string HolderName { get; set; } = string.Empty;
+    [JsonPropertyName("number")]
+    public string Number { get; set; } = string.Empty;
+    [JsonPropertyName("expiryMonth")]
+    public string ExpiryMonth { get; set; } = string.Empty;
+    [JsonPropertyName("expiryYear")]
+    public string ExpiryYear { get; set; } = string.Empty;
+    [JsonPropertyName("ccv")]
+    public string Ccv { get; set; } = string.Empty;
+}
+
+public sealed class AsaasCreditCardHolderInfo
+{
+    [JsonPropertyName("name")]
+    public string Name { get; set; } = string.Empty;
+    [JsonPropertyName("email")]
+    public string Email { get; set; } = string.Empty;
+    [JsonPropertyName("cpfCnpj")]
+    public string Document { get; set; } = string.Empty;
+    [JsonPropertyName("postalCode")]
+    public string PostalCode { get; set; } = string.Empty;
+    [JsonPropertyName("addressNumber")]
+    public string AddressNumber { get; set; } = string.Empty;
+    [JsonPropertyName("phone")]
+    public string Phone { get; set; } = string.Empty;
+}
+
+public sealed class AsaasPaymentCallback
+{
+    [JsonPropertyName("successUrl")]
+    public Uri SuccessUrl { get; set; } = null!;
+
+    [JsonPropertyName("autoRedirect")]
+    public bool AutoRedirect { get; set; }
 }
 
 public sealed class AsaasPaymentPage

@@ -65,6 +65,9 @@ public sealed class AsaasCustomer
     [JsonPropertyName("name")]
     public string? Name { get; set; }
 
+    [JsonPropertyName("externalReference")]
+    public string? ExternalReference { get; set; }
+
     [JsonExtensionData]
     public IDictionary<string, JsonElement>? AdditionalProperties { get; set; }
 }

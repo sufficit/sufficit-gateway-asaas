@@ -27,6 +27,29 @@ public sealed partial class AsaasGateway : IAsaasPaymentGateway
         return await ReadRequiredAsync<AsaasPayment>(response, cancellationToken).ConfigureAwait(false);
     }
 
+    public async Task<AsaasPayment> PayWithCreditCardAsync(
+        string paymentId,
+        AsaasCreditCardPaymentRequest request,
+        GatewayCallContext context,
+        CancellationToken cancellationToken)
+    {
+        ValidatePaymentId(paymentId);
+        ArgumentNullException.ThrowIfNull(request);
+        ValidateContext(context);
+        if (request.CreditCard is null || request.CreditCardHolderInfo is null)
+            throw new ArgumentException("Card and cardholder information are required.", nameof(request));
+
+        using var response = await SendGatewayAsync(
+            () => CreateJsonRequest(HttpMethod.Post,
+                BuildUri(context, $"payments/{Uri.EscapeDataString(paymentId.Trim())}/payWithCreditCard"),
+                request),
+            context,
+            cancellationToken,
+            TimeSpan.FromSeconds(70)).ConfigureAwait(false);
+        await EnsureSuccessAsync(response, "card payment", cancellationToken).ConfigureAwait(false);
+        return await ReadRequiredAsync<AsaasPayment>(response, cancellationToken).ConfigureAwait(false);
+    }
+
     public async Task<AsaasPayment?> GetPaymentAsync(
         string paymentId,
         GatewayCallContext context,
@@ -195,6 +218,15 @@ public sealed partial class AsaasGateway : IAsaasPaymentGateway
         if (request.DueDate == default)
         {
             throw new ArgumentException("A payment due date is required.", nameof(request));
+        }
+
+        if (request.Callback is { } callback
+            && (callback.SuccessUrl is not { IsAbsoluteUri: true } successUrl
+                || successUrl.Scheme != Uri.UriSchemeHttps
+                || !string.IsNullOrEmpty(successUrl.UserInfo)
+                || !string.IsNullOrEmpty(successUrl.Fragment)))
+        {
+            throw new ArgumentException("Payment callback must be an absolute HTTPS URL without credentials or fragment.", nameof(request));
         }
 
         if (request.InstallmentCount is < 1)

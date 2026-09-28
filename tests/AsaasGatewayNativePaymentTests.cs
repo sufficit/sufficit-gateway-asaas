@@ -8,6 +8,37 @@ namespace Sufficit.Gateway.Asaas.Tests;
 public sealed class AsaasGatewayNativePaymentTests
 {
     [Fact]
+    public async Task PayExistingChargePostsCardOnlyToPayEndpoint()
+    {
+        var handler = new RecordingHttpMessageHandler();
+        handler.EnqueueJson("""{"id":"pay_test","billingType":"CREDIT_CARD","status":"CONFIRMED","value":5.00,"externalReference":"checkout:test"}""");
+        var gateway = GatewayTestFactory.CreateAsaas(handler);
+
+        var result = await gateway.PayWithCreditCardAsync("pay_test", new AsaasCreditCardPaymentRequest
+        {
+            CreditCard = new AsaasCreditCard
+            {
+                HolderName = "Cliente Teste", Number = "4111111111111111",
+                ExpiryMonth = "12", ExpiryYear = "2030", Ccv = "123"
+            },
+            CreditCardHolderInfo = new AsaasCreditCardHolderInfo
+            {
+                Name = "Cliente Teste", Email = "teste@example.invalid",
+                Document = "12345678909", PostalCode = "12345678",
+                AddressNumber = "12", Phone = "11999999999"
+            }
+        }, CreateContext(), CancellationToken.None);
+
+        Assert.Equal("CONFIRMED", result.Status);
+        var sent = Assert.Single(handler.Requests);
+        Assert.Equal(HttpMethod.Post, sent.Method);
+        Assert.Equal("https://api-sandbox.asaas.com/v3/payments/pay_test/payWithCreditCard", sent.Uri.AbsoluteUri);
+        using var body = JsonDocument.Parse(sent.Body!);
+        Assert.Equal("4111111111111111", body.RootElement.GetProperty("creditCard").GetProperty("number").GetString());
+        Assert.Equal("12345678909", body.RootElement.GetProperty("creditCardHolderInfo").GetProperty("cpfCnpj").GetString());
+    }
+
+    [Fact]
     public async Task CreatePaymentPostsNativeContract()
     {
         var handler = new RecordingHttpMessageHandler();
@@ -62,6 +93,33 @@ public sealed class AsaasGatewayNativePaymentTests
         Assert.Equal(159.90m, payload.RootElement.GetProperty("value").GetDecimal());
         Assert.Equal("2026-10-01", payload.RootElement.GetProperty("dueDate").GetString());
         Assert.Equal("checkout:session-1", payload.RootElement.GetProperty("externalReference").GetString());
+    }
+
+    [Fact]
+    public async Task CreateCardPaymentSendsHostedReturnCallback()
+    {
+        var handler = new RecordingHttpMessageHandler();
+        handler.EnqueueJson("""{"id":"pay_card_1","billingType":"CREDIT_CARD","status":"PENDING"}""");
+        var gateway = GatewayTestFactory.CreateAsaas(handler);
+
+        await gateway.CreatePaymentAsync(new AsaasPaymentCreateRequest
+        {
+            CustomerId = "cus_001",
+            BillingType = AsaasPaymentBillingTypes.CreditCard,
+            Value = 5m,
+            DueDate = new DateOnly(2026, 10, 1),
+            Callback = new AsaasPaymentCallback
+            {
+                SuccessUrl = new Uri("https://checkout.sufficit.com.br/c/scm1.payload.signature"),
+                AutoRedirect = true
+            }
+        }, CreateContext(), CancellationToken.None);
+
+        using var payload = JsonDocument.Parse(Assert.Single(handler.Requests).Body!);
+        var callback = payload.RootElement.GetProperty("callback");
+        Assert.Equal("https://checkout.sufficit.com.br/c/scm1.payload.signature",
+            callback.GetProperty("successUrl").GetString());
+        Assert.True(callback.GetProperty("autoRedirect").GetBoolean());
     }
 
     [Fact]

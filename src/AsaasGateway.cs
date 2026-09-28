@@ -45,14 +45,15 @@ public sealed partial class AsaasGateway
     private async Task<HttpResponseMessage> SendGatewayAsync(
         Func<HttpRequestMessage> requestFactory,
         GatewayCallContext context,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        TimeSpan? timeoutOverride = null)
     {
         var credential = await GetRequiredCredentialAsync(context, cancellationToken)
             .ConfigureAwait(false);
 
         var client = _httpClientFactory.CreateClient(HttpClientName);
         var options = _options.CurrentValue;
-        client.Timeout = options.Timeout;
+        client.Timeout = timeoutOverride ?? options.Timeout;
         using var request = requestFactory();
         request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
         request.Headers.TryAddWithoutValidation("access_token", credential.ApiKey);

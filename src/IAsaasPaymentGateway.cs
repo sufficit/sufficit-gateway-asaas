@@ -13,6 +13,12 @@ public interface IAsaasPaymentGateway
         GatewayCallContext context,
         CancellationToken cancellationToken);
 
+    Task<AsaasPayment> PayWithCreditCardAsync(
+        string paymentId,
+        AsaasCreditCardPaymentRequest request,
+        GatewayCallContext context,
+        CancellationToken cancellationToken);
+
     Task<AsaasPayment?> GetPaymentAsync(
         string paymentId,
         GatewayCallContext context,
