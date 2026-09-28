@@ -159,10 +159,42 @@ Precisa de credencial de aplicação.
 **(b) Cobertura** — endpoints não expõem Pix/checkout e o client não tem
 seção de Pix: criar endpoints privados + seções é **o maior item do plano**.
 
-### 4.4 `sufficit-client-private`
+### 4.4 Decisão (usuário, 2026-09-23): tudo no próprio `sufficit-client`
 
-1. Pacote `Sufficit.Client.Private` (fronteira explícita) — **recomendada**;
-2. Seções no próprio client com registro distinto (convenção).
+**Sem pacote `Sufficit.Client.Private`.** As seções de Pix/checkout vivem no
+client normal, e a segurança fica na camada da API (endpoints) —
+"a segurança já cuidamos na API". Implementação:
+
+**Superfície de API (endpoints, área Gateway):**
+
+- `POST /Gateway/Asaas/Payments` — cria cobrança Pix/boleto
+  (`CheckoutPaymentCreateRequest` do domínio, sem tipos do gateway);
+  `[Authorize(Policy = CheckoutPaymentsPolicy)]`, escopado por rota;
+- `GET /Gateway/Asaas/Payments/{id}` — consulta provider payment p/ Pix;
+- `POST /Gateway/Asaas/Account/Verify` — verificação de beneficiário;
+- `POST /Gateway/Asaas/Webhooks/Provisioning` — provisionamento de webhook;
+- `POST /Gateway/Asaas/Webhooks/Events/Verify` — verificação de assinatura
+  de evento (HMAC do webhook), rota de serviço usada pelo checkout.
+
+**Auth máquina-a-máquina (novo):** `CheckoutPaymentsAuthenticationHandler`,
+header `X-Checkout-Payments-Key`, chave ≥32 bytes em
+`Sufficit:Gateway:Asaas:CheckoutPaymentsKey` (+ sufixo `File`), comparada com
+`CryptographicOperations.FixedTimeEquals`, scheme `CheckoutPayments`, escopada
+às rotas exatas acima — mesmos mecanismos dos precedentes
+`MeteredSales`/`CheckoutVoucher`.
+
+**Seções no client:** seção única
+`GatewayControllerSection.AsaasPayments` (`AsaasPaymentsControllerSection`),
+tipada com os contratos de domínio da **Base** (`Sufficit.Finance`); o
+override de `Authenticate` substitui o fluxo Bearer pelo header da chave de
+integração, logo não há caminho anônimo a declarar. Config no checkout:
+`Sufficit:EndPoints:BaseAddress` +
+`Checkout:Providers:Asaas:PaymentsKeyFile` (arquivo protegido lido pelo
+`FileIntegrationKeyProvider`).
+
+**Não muda:** fluxo do webhook no checkout (assinatura continua validada lá
+pelo gateway — nada de payload de provedor trafegando pela API Sufficit);
+SqliteCheckoutStore e tokens assinados ficam no checkout.
 
 ## 5. Etapas (ordem de release)
 
@@ -186,6 +218,46 @@ seção de Pix: criar endpoints privados + seções é **o maior item do plano**
    implementações saírem para o Standard.
 2. **Migrar o Checkout** para o client (endpoints privados, credencial de
    aplicação, remover referência ao gateway). Maior item; independe da 1.
+   **✅ CONCLUÍDA (2026-09-23, realinhada à arquitetura):** sem pacote
+   privado — decisão do usuário: tudo no próprio `sufficit-client`,
+   segurança na camada da API. *Realinhamento (mesma data, correção do
+   usuário):* classes/contratos → **Base**; modelos de negócio →
+   **Standard**; Endpoints apenas controladores de API.
+   *Base:* `src/Finance/CheckoutPaymentsContracts.cs` (`Sufficit.Finance`;
+   10 contratos de wire compartilhados por API e client).
+   *Standard:* `src/Finance/AsaasCheckoutGatewayOptions.cs` (tenant,
+   ambiente, credential-reference, beneficiário + `CreateCallContext`) e
+   `CheckoutPaymentsOptions.cs` (chave direta ou arquivo com higiene Unix),
+   ambos fora do build netstandard2.0 (mesma convenção de
+   `Finance\BankSlip\**`).
+   *Endpoints:* `AsaasCheckoutPaymentsController` (5 rotas: create
+   pix/bankslip com apresentação Pix opcional, get payment, account verify
+   com pinning de beneficiário, webhook provisioning, webhook events verify
+   com parse do provedor) + `CheckoutPaymentsAuthenticationHandler`
+   (`X-Checkout-Payments-Key`, `FixedTimeEquals`, escopado às rotas exatas)
+   + `AddAsaasCheckoutPayments` (só binding de options, scheme e policy);
+   nenhum modelo declarado no projeto.
+   *Client:* `AsaasPaymentsControllerSection` (5 métodos tipados pelos
+   contratos da Base; override de `Authenticate` injeta a chave via
+   `ITokenProvider` em vez de Bearer), exposta como
+   `GatewayControllerSection.AsaasPayments`.
+   *Checkout:* porta local `ICheckoutPaymentsApi` + adapter
+   `ClientCheckoutPaymentsApi`; `FileGatewayCredentialResolver` deletado
+   (substituído por `FileIntegrationKeyProvider` como `ITokenProvider`);
+   `PersistentCheckoutSessionService` scoped consumindo a porta;
+   provisionamento de webhook via `IServiceScopeFactory`; assinatura do
+   webhook do provedor agora validada pela API (o segredo não mora mais no
+   checkout); appsettings sem credenciais de provedor (só `PaymentsKeyFile`
+   + `Sufficit:EndPoints:BaseAddress`).
+   *Validação:* endpoints 546/546 testes; checkout 135/135; client 0 erros
+   nos 3 TFMs; Standard 0 erros nos 3 TFMs. *Falha pré-existente isolada
+   (área Sales, não tocada por esta etapa):*
+   `DeleteContract_RemovesContractAndAllGeneratedArtifacts` — guarda de
+   períodos fechados no EFData (2026-09-20) contradiz teste mais antigo
+   (2026-08-27); exige decisão de produto (guarda × teste), não corrigida
+   aqui. *Operação pendente:* provisionar a chave de integração no host
+   (`Sufficit:Gateway:Asaas:CheckoutPayments`) e o arquivo protegido no
+   checkout (`/etc/sufficit/checkout/asaas-payments-key`).
 3. **Movimento atômico no gateway + Standard:** implementações
    `BankSlip*`/`PixPayment*`/parser de webhook saem para o Standard como
    adaptadores; gateway define os contratos próprios (3.2), troca os usings,

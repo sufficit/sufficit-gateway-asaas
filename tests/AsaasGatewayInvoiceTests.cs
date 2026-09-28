@@ -49,7 +49,8 @@ public class AsaasGatewayInvoiceTests
         Assert.Equal("inv_test", invoice.Id);
         Assert.Equal("AUTHORIZED", invoice.Status);
         Assert.Contains("limit=25", handler.Requests[0].Uri.Query);
-        Assert.Contains("effectiveDate%5Bge%5D=2026-07-01", handler.Requests[0].Uri.Query);
+        Assert.Contains("effectiveDate%5BGe%5D=2026-07-01", handler.Requests[0].Uri.Query);
+        Assert.Contains("effectiveDate%5BLe%5D=2026-07-31", handler.Requests[0].Uri.Query);
         Assert.Contains("customer=cus_test", handler.Requests[0].Uri.Query);
         Assert.Equal("$aact_hmlg_test", handler.Requests[0].Headers["access_token"].Single());
     }
