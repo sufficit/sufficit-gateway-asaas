@@ -364,11 +364,6 @@ public sealed partial class AsaasGateway : IAsaasInvoiceGateway
     private static void ValidateContext(GatewayCallContext context)
     {
         ArgumentNullException.ThrowIfNull(context);
-        if (context.TenantId == Guid.Empty)
-        {
-            throw new ArgumentException("Tenant identifier is required.", nameof(context));
-        }
-
         if (string.IsNullOrWhiteSpace(context.CredentialReference))
         {
             throw new ArgumentException("Credential reference is required.", nameof(context));

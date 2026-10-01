@@ -218,7 +218,7 @@ public sealed partial class AsaasGateway : IBankSlipGateway, IBankSlipProviderDi
                 throw new BankSlipGatewayException(
                     BankSlipErrorCategory.SecurityBlock,
                     "asaas_duplicate_customers",
-                    "Multiple Asaas customers match the tenant context and payer document.");
+                    "Multiple Asaas customers match the supplied bank slip context and payer document.");
             }
 
             if (matches.Length == 1)

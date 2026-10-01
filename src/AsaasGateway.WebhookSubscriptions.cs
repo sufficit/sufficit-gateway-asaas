@@ -156,7 +156,7 @@ public sealed partial class AsaasGateway : IAsaasWebhookGateway
         {
             throw new AsaasGatewayException(
                 "asaas_credentials_missing",
-                "Asaas credentials are not configured for the selected tenant.",
+                "Asaas credentials are not configured for the selected credential reference.",
                 innerException: exception);
         }
 
@@ -164,7 +164,7 @@ public sealed partial class AsaasGateway : IAsaasWebhookGateway
         {
             throw new AsaasGatewayException(
                 "asaas_credentials_missing",
-                "Asaas credentials are not configured for the selected tenant.");
+                "Asaas credentials are not configured for the selected credential reference.");
         }
 
         return credential;

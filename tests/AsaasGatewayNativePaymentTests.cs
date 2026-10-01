@@ -305,6 +305,26 @@ public sealed class AsaasGatewayNativePaymentTests
             CancellationToken.None));
     }
 
+    [Fact]
+    public async Task PaymentOperationsDoNotRequireTenantIdWhenCredentialReferenceIsProvided()
+    {
+        var handler = new RecordingHttpMessageHandler();
+        handler.EnqueueJson("""{"id":"pay_001","status":"PENDING"}""");
+        var gateway = GatewayTestFactory.CreateAsaas(handler);
+        var context = new GatewayCallContext
+        {
+            TenantId = Guid.Empty,
+            Environment = GatewayEnvironment.Sandbox,
+            CredentialReference = "tests/asaas"
+        };
+
+        var result = await gateway.GetPaymentAsync("pay_001", context, CancellationToken.None);
+
+        Assert.NotNull(result);
+        Assert.Equal("pay_001", result!.Id);
+        Assert.Single(handler.Requests);
+    }
+
     private static GatewayCallContext CreateContext() => new()
     {
         TenantId = Guid.NewGuid(),
