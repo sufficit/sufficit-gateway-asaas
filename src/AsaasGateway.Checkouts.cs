@@ -75,7 +75,13 @@ public sealed partial class AsaasGateway : IAsaasCheckoutGateway
                 .Distinct()
                 .Select(MapBillingType)
                 .ToArray(),
-            chargeTypes = new[] { "DETACHED" },
+            chargeTypes = new[] { request.MonthlyFirstDueDate.HasValue ? "RECURRENT" : "DETACHED" },
+            customer = request.CustomerId,
+            subscription = request.MonthlyFirstDueDate.HasValue ? new
+            {
+                cycle = "MONTHLY",
+                nextDueDate = request.MonthlyFirstDueDate.Value.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)
+            } : null,
             minutesToExpire = request.MinutesToExpire,
             externalReference = request.ExternalReference.Trim(),
             callback = new
@@ -196,6 +202,10 @@ public sealed partial class AsaasGateway : IAsaasCheckoutGateway
     private static void ValidateCheckoutRequest(AsaasCheckoutRequest request)
     {
         ArgumentNullException.ThrowIfNull(request);
+        if (request.MonthlyFirstDueDate.HasValue
+            && (request.BillingTypes.Count != 1 || !request.BillingTypes.Contains(AsaasCheckoutBillingType.CreditCard)
+                || string.IsNullOrWhiteSpace(request.CustomerId) || !request.CustomerId.StartsWith("cus_", StringComparison.Ordinal)))
+            throw new ArgumentException("A monthly checkout requires an existing customer and credit card only.", nameof(request));
         if (request.BillingTypes.Count is < 1 or > 2
             || request.BillingTypes.Distinct().Count() != request.BillingTypes.Count)
         {

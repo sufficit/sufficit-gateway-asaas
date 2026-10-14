@@ -215,6 +215,44 @@ public sealed class AsaasGatewayCheckoutTests
         Assert.DoesNotContain("sensitive", exception.Message, StringComparison.OrdinalIgnoreCase);
     }
 
+    [Fact]
+    public async Task MonthlyCheckoutUsesRegisteredCustomerWithoutEndDate()
+    {
+        var handler = new RecordingHttpMessageHandler();
+        handler.EnqueueJson("""{"id":"chk_monthly","status":"ACTIVE"}""");
+        var request = CreateValidRequest();
+        request.CustomerId = "cus_registered";
+        request.MonthlyFirstDueDate = new DateOnly(2026, 10, 22);
+        await GatewayTestFactory.CreateAsaas(handler).CreateAsync(request, CreateContext(), default);
+        using var json = JsonDocument.Parse(Assert.Single(handler.Requests).Body!);
+        Assert.Equal("RECURRENT", json.RootElement.GetProperty("chargeTypes")[0].GetString());
+        Assert.Equal("cus_registered", json.RootElement.GetProperty("customer").GetString());
+        var subscription = json.RootElement.GetProperty("subscription");
+        Assert.Equal("MONTHLY", subscription.GetProperty("cycle").GetString());
+        Assert.Equal("2026-10-22", subscription.GetProperty("nextDueDate").GetString());
+        Assert.False(subscription.TryGetProperty("endDate", out _));
+    }
+
+    [Fact]
+    public async Task RecurringSnapshotRejectsPaymentFromAnotherCustomer()
+    {
+        var handler = new RecordingHttpMessageHandler();
+        handler.EnqueueJson("""{"data":[{"customer":"cus_other","billingType":"CREDIT_CARD"}]}""");
+        await Assert.ThrowsAsync<InvalidOperationException>(() => GatewayTestFactory.CreateAsaas(handler)
+            .GetRecurringSnapshotAsync(Guid.NewGuid().ToString(), "cus_expected", null, CreateContext(), default));
+    }
+
+    [Fact]
+    public async Task RecurringSnapshotRequiresExactCheckoutBeforeAssociatingSubscription()
+    {
+        var handler = new RecordingHttpMessageHandler();
+        handler.EnqueueJson("""{"data":[{"customer":"cus_expected","billingType":"CREDIT_CARD","checkoutSession":"different-checkout"}]}""");
+        var id = Guid.NewGuid().ToString();
+        await Assert.ThrowsAsync<InvalidOperationException>(() => GatewayTestFactory.CreateAsaas(handler)
+            .GetRecurringSnapshotAsync(id, "cus_expected", null, CreateContext(), default));
+        Assert.Contains("checkoutSession=" + id, Assert.Single(handler.Requests).Uri.Query);
+    }
+
     private static AsaasCheckoutRequest CreateValidRequest() => new()
     {
         BillingTypes = [AsaasCheckoutBillingType.CreditCard],
