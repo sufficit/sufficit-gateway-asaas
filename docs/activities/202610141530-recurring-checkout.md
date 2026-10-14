@@ -2,4 +2,4 @@
 
 Suporte ao cliente existente e primeiro vencimento mensal no checkout hospedado; consulta das assinaturas e pagamentos para reconciliação. Dados de cartão permanecem no provedor.
 
-Validação anterior nesta sessão: 60 testes passaram. A atualização local de dependências Microsoft 10.0.12 para 10.0.13 não pertence a este trabalho e permanece fora do commit.
+Validação anterior nesta sessão: 60 testes passaram. O CI demonstrou NU1605 contra Sufficit.Base e dependências transitivas 10.0.13. O alinhamento Microsoft 10.0.13 foi incluído para permitir o restore limpo; os 60 testes locais passaram com esse alinhamento.
