@@ -11,6 +11,66 @@ public sealed record AsaasRecurringSnapshot(string? SubscriptionId, string Statu
 
 public sealed partial class AsaasGateway
 {
+    /// <summary>Normalizes the future price while preserving the initial charge, even before it is paid.</summary>
+    public async Task<AsaasRecurringSnapshot> ReconcileRecurringAmountAsync(string checkoutId, string customerId,
+        string? subscriptionId, decimal initialAmount, DateOnly initialDueDate, decimal monthlyAmount,
+        DateOnly monthlyFirstDueDate, GatewayCallContext context, CancellationToken ct)
+    {
+        if (initialAmount < 5 || monthlyAmount < 5 || decimal.Round(monthlyAmount, 2) != monthlyAmount
+            || monthlyFirstDueDate <= initialDueDate)
+            throw new ArgumentException("Invalid recurring price schedule.");
+        // Always anchor the subscription to the original provider checkout, including retries.
+        var anchor = await GetRecurringSnapshotAsync(checkoutId, customerId, null, context, ct);
+        if (subscriptionId is not null && anchor.SubscriptionId != subscriptionId)
+            throw new InvalidOperationException("Recurring checkout binding mismatch.");
+        if (anchor.SubscriptionId is null) return anchor;
+        var snapshot = await GetRecurringSnapshotAsync(checkoutId, customerId, anchor.SubscriptionId, context, ct);
+        ValidateRecurringSchedule(snapshot, initialAmount, initialDueDate, monthlyAmount, monthlyFirstDueDate);
+        if (snapshot.Value == monthlyAmount && snapshot.Payments.All(p => p.DueDate < monthlyFirstDueDate
+            || p.Value == monthlyAmount || p.Status is "DELETED" or "REFUNDED" or "CANCELLED")) return snapshot;
+        if (!snapshot.Payments.Any(p => p.DueDate == initialDueDate && p.Value == initialAmount))
+            throw new InvalidOperationException("Initial recurring charge is missing.");
+        // Never apply the monthly price to all pending charges: the first may still be unpaid.
+        if (snapshot.Value != monthlyAmount)
+        {
+            using var response = await SendGatewayAsync(() => CreateJsonRequest(HttpMethod.Put,
+                BuildUri(context, "subscriptions/" + Uri.EscapeDataString(snapshot.SubscriptionId!)),
+                new { value = monthlyAmount, updatePendingPayments = false }), context, ct);
+            response.EnsureSuccessStatusCode();
+        }
+        // Asaas may have pre-generated the next installment; correct only those future pending charges.
+        foreach (var payment in snapshot.Payments.Where(p => p.DueDate >= monthlyFirstDueDate && p.Value != monthlyAmount
+            && p.Status is "PENDING" or "OVERDUE" or "AWAITING_RISK_ANALYSIS"))
+        {
+            if (!payment.Id.StartsWith("pay_", StringComparison.Ordinal) || payment.Id.Any(char.IsControl))
+                throw new InvalidOperationException("Invalid recurring payment identity.");
+            using var response = await SendGatewayAsync(() => CreateJsonRequest(HttpMethod.Put,
+                BuildUri(context, "payments/" + Uri.EscapeDataString(payment.Id)), new { value = monthlyAmount, billingType = "CREDIT_CARD", dueDate = payment.DueDate.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture) }), context, ct);
+            response.EnsureSuccessStatusCode();
+        }
+        var updated = await GetRecurringSnapshotAsync(checkoutId, customerId, snapshot.SubscriptionId, context, ct);
+        ValidateRecurringSchedule(updated, initialAmount, initialDueDate, monthlyAmount, monthlyFirstDueDate);
+        if (updated.Value != monthlyAmount || updated.Payments.Any(p => p.DueDate >= monthlyFirstDueDate
+            && p.Status is not ("DELETED" or "REFUNDED" or "CANCELLED") && p.Value != monthlyAmount))
+            throw new InvalidOperationException("Recurring price update requires reconciliation.");
+        return updated;
+    }
+
+    private static void ValidateRecurringSchedule(AsaasRecurringSnapshot snapshot, decimal initialAmount,
+        DateOnly initialDueDate, decimal monthlyAmount, DateOnly monthlyFirstDueDate)
+    {
+        if (snapshot.Value != initialAmount && snapshot.Value != monthlyAmount)
+            throw new InvalidOperationException("Unexpected recurring price.");
+        foreach (var p in snapshot.Payments.Where(p => p.Status is not ("DELETED" or "REFUNDED" or "CANCELLED")))
+        {
+            if (p.DueDate == initialDueDate && p.Value == initialAmount) continue;
+            if (p.DueDate >= monthlyFirstDueDate && (p.Value == monthlyAmount
+                || p.Value == initialAmount
+                    && p.Status is "PENDING" or "OVERDUE" or "AWAITING_RISK_ANALYSIS")) continue;
+            throw new InvalidOperationException("Unexpected recurring receipt schedule.");
+        }
+    }
+
     /// <summary>Reads provider evidence without returning card tokens or holder data.</summary>
     public async Task<AsaasRecurringSnapshot> GetRecurringSnapshotAsync(string checkoutId,
         string customerId, string? subscriptionId, GatewayCallContext context, CancellationToken ct)
@@ -54,7 +114,8 @@ public sealed partial class AsaasGateway
         using var subscriptionDocument = await ReadJsonAsync(subscriptionResponse, ct);
         var s = subscriptionDocument.RootElement;
         if (GetString(s, "customer") != customerId || GetString(s, "billingType") != "CREDIT_CARD"
-            || GetString(s, "cycle") != "MONTHLY") throw new InvalidOperationException("Subscription terms mismatch.");
+            || GetString(s, "cycle") != "MONTHLY" || !string.IsNullOrWhiteSpace(GetString(s, "endDate"))
+            || s.TryGetProperty("maxPayments", out var max) && max.ValueKind == JsonValueKind.Number && max.GetInt32() > 0) throw new InvalidOperationException("Subscription terms mismatch.");
         return new(subscriptionId, GetString(s, "status")!, s.GetProperty("value").GetDecimal(),
             DateOnly.TryParse(GetString(s, "nextDueDate"), out var next) ? next : null, payments);
     }
