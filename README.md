@@ -110,7 +110,7 @@ recusa HTTP, loopback, credenciais na URL e hosts fora de
 
 ## Checkout hospedado
 
-`IAsaasCheckoutGateway` cria cobranças avulsas em `/v3/checkouts`, aceita
+`IAsaasCheckoutGateway` cria checkouts avulsos e recorrentes mensais em `/v3/checkouts`, aceita
 somente callbacks HTTPS, valida que o link retornado pertence a `asaas.com` e
 mantém o `externalReference` do pedido. O parser aceita apenas
 `CHECKOUT_CREATED`, `CHECKOUT_CANCELED`, `CHECKOUT_EXPIRED` e `CHECKOUT_PAID`,
@@ -119,6 +119,15 @@ segredo protegido do header `asaas-access-token` em tempo constante.
 
 `GetAccountAsync` consulta `/v3/myAccount/commercialInfo/` para que o host
 confira o CPF/CNPJ associado à credencial antes de habilitar a cobrança.
+
+`GetRecurringSnapshotAsync` vincula a assinatura ao cliente e ao checkout de origem.
+Se a consulta filtrada por checkout vier vazia, consulta as páginas do mesmo cliente
+para selecionar o checkout exato localmente; outros checkouts não são associados.
+`ReconcileRecurringAmountAsync` preserva a primeira cobrança e corrige somente o
+valor da assinatura e eventuais parcelas futuras pendentes. Repetir uma agenda já
+normalizada executa apenas leituras. Alterações financeiras de homologação devem
+usar exclusivamente o Sandbox; a permissão técnica de tokenização não autoriza
+testes de valores em produção.
 
 ## Validação
 

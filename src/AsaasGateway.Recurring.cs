@@ -72,15 +72,19 @@ public sealed partial class AsaasGateway
     }
 
     /// <summary>Reads provider evidence without returning card tokens or holder data.</summary>
-    public async Task<AsaasRecurringSnapshot> GetRecurringSnapshotAsync(string checkoutId,
+    public Task<AsaasRecurringSnapshot> GetRecurringSnapshotAsync(string checkoutId,
         string customerId, string? subscriptionId, GatewayCallContext context, CancellationToken ct)
+        => GetRecurringSnapshotCoreAsync(checkoutId, customerId, subscriptionId, context, ct, filterByCheckout: true);
+
+    private async Task<AsaasRecurringSnapshot> GetRecurringSnapshotCoreAsync(string checkoutId,
+        string customerId, string? subscriptionId, GatewayCallContext context, CancellationToken ct, bool filterByCheckout)
     {
         if (!Guid.TryParse(checkoutId, out _) || !customerId.StartsWith("cus_", StringComparison.Ordinal)
             || customerId.Any(char.IsControl)) throw new ArgumentException("Invalid recurring identity.");
         var originalSubscription = subscriptionId;
         var path = "payments?limit=100&customer=" + Uri.EscapeDataString(customerId)
-            + (subscriptionId is null ? "&checkoutSession=" + Uri.EscapeDataString(checkoutId)
-                : "&subscription=" + Uri.EscapeDataString(subscriptionId));
+            + (subscriptionId is not null ? "&subscription=" + Uri.EscapeDataString(subscriptionId)
+                : filterByCheckout ? "&checkoutSession=" + Uri.EscapeDataString(checkoutId) : "");
         var payments = new List<AsaasRecurringPayment>();
         for (var offset = 0; ; offset += 100)
         {
@@ -91,7 +95,14 @@ public sealed partial class AsaasGateway
             var root = document.RootElement;
             foreach (var item in root.GetProperty("data").EnumerateArray())
             {
-                if (GetString(item, "customer") != customerId || GetString(item, "billingType") != "CREDIT_CARD"
+                if (GetString(item, "customer") != customerId)
+                    throw new InvalidOperationException("Recurring customer mismatch.");
+                // Some provider environments return an empty checkout-filtered list despite
+                // exposing the same checkout on the customer list. Recovery must select the
+                // exact checkout locally, never an arbitrary subscription of the customer.
+                if (originalSubscription is null && !filterByCheckout
+                    && GetString(item, "checkoutSession") != checkoutId) continue;
+                if (GetString(item, "billingType") != "CREDIT_CARD"
                     || (originalSubscription is null && GetString(item, "checkoutSession") != checkoutId))
                     throw new InvalidOperationException("Recurring customer, checkout or method mismatch.");
                 var source = GetString(item, "subscription");
@@ -105,6 +116,8 @@ public sealed partial class AsaasGateway
             if (!root.TryGetProperty("hasMore", out var more) || !more.GetBoolean()) break;
             if (root.GetProperty("data").GetArrayLength() == 0) throw new InvalidOperationException("Invalid recurring pagination.");
         }
+        if (subscriptionId is null && originalSubscription is null && filterByCheckout)
+            return await GetRecurringSnapshotCoreAsync(checkoutId, customerId, null, context, ct, filterByCheckout: false);
         if (subscriptionId is null) return new(null, "PENDING", null, null, payments);
         if (!subscriptionId.StartsWith("sub_", StringComparison.Ordinal) || subscriptionId.Any(char.IsControl))
             throw new InvalidOperationException("Invalid subscription identifier.");

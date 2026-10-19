@@ -19,6 +19,38 @@ public sealed class AsaasGatewayRecurringPriceTests
         h.EnqueueJson(JsonSerializer.Serialize(new { customer="cus_test", billingType="CREDIT_CARD", cycle="MONTHLY", status="ACTIVE", value, nextDueDate="2026-11-22" }));
     }
     [Fact]
+    public async Task EmptyCheckoutFilterRecoversExactCheckoutFromPaginatedCustomerPayments()
+    {
+        var h = new RecordingHttpMessageHandler();
+        h.EnqueueJson("""{"data":[],"hasMore":false}""");
+        h.EnqueueJson("""{"data":[{"customer":"cus_test","billingType":"PIX","checkoutSession":"another-checkout"}],"hasMore":true}""");
+        h.EnqueueJson(JsonSerializer.Serialize(new { data = new[] {
+            new { id="pay_first", customer="cus_test", billingType="CREDIT_CARD", subscription="sub_test", checkoutSession=Checkout, value=12.34m, status="CONFIRMED", dueDate="2026-10-19" }
+        }, hasMore=false }));
+        h.EnqueueJson("""{"customer":"cus_test","billingType":"CREDIT_CARD","cycle":"MONTHLY","status":"ACTIVE","value":12.34,"nextDueDate":"2026-11-19"}""");
+        var result = await GatewayTestFactory.CreateAsaas(h).GetRecurringSnapshotAsync(Checkout,"cus_test",null,Context(),default);
+        Assert.Equal("sub_test", result.SubscriptionId);
+        Assert.Equal("pay_first", Assert.Single(result.Payments).Id);
+        Assert.Equal(4, h.Requests.Count);
+        Assert.DoesNotContain("checkoutSession=", h.Requests[1].Uri.Query);
+        Assert.Contains("customer=cus_test", h.Requests[1].Uri.Query);
+        Assert.Contains("offset=100", h.Requests[2].Uri.Query);
+        Assert.All(h.Requests, r => Assert.Equal(HttpMethod.Get, r.Method));
+    }
+
+    [Fact]
+    public async Task CustomerRecoveryNeverAdoptsAnotherCheckoutSubscription()
+    {
+        var h = new RecordingHttpMessageHandler();
+        h.EnqueueJson("""{"data":[],"hasMore":false}""");
+        h.EnqueueJson("""{"data":[{"customer":"cus_test","billingType":"CREDIT_CARD","checkoutSession":"another-checkout","subscription":"sub_other"}],"hasMore":false}""");
+        var result = await GatewayTestFactory.CreateAsaas(h).GetRecurringSnapshotAsync(Checkout,"cus_test",null,Context(),default);
+        Assert.Null(result.SubscriptionId);
+        Assert.Empty(result.Payments);
+        Assert.Equal(2, h.Requests.Count);
+    }
+
+    [Fact]
     public async Task ConfirmedInitialPaymentIsPreservedWhilePendingFutureChargesAdoptMonthlyPrice()
     {
         var h=new RecordingHttpMessageHandler();
