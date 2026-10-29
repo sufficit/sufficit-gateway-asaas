@@ -110,6 +110,12 @@ public sealed partial class AsaasGateway : IBankSlipProviderWebhookGateway
             EventAtUtc = eventAtUtc,
             PaidAtUtc = paidAtUtc,
             Value = value,
+            PaymentMethod = billingType,
+            PayerReference = GetString(payment, "customer"),
+            Description = GetString(payment, "description"),
+            CheckoutSessionId = GetString(payment, "checkoutSession"),
+            ReceiptUrl = GetString(payment, "transactionReceiptUrl")
+                ?? GetString(payment, "invoiceUrl"),
             Payload = root.GetRawText()
         };
 
