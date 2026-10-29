@@ -216,6 +216,20 @@ public sealed class AsaasGatewayCheckoutTests
     }
 
     [Fact]
+    public async Task MonthlyCheckoutLetsNewPayerEnterDetailsOnHostedPage()
+    {
+        var handler = new RecordingHttpMessageHandler();
+        handler.EnqueueJson("""{"id":"chk_new_payer","status":"ACTIVE"}""");
+        var request = CreateValidRequest();
+        request.MonthlyFirstDueDate = new DateOnly(2026, 11, 26);
+        await GatewayTestFactory.CreateAsaas(handler).CreateAsync(request, CreateContext(), default);
+        using var json = JsonDocument.Parse(Assert.Single(handler.Requests).Body!);
+        Assert.Equal("RECURRENT", json.RootElement.GetProperty("chargeTypes")[0].GetString());
+        Assert.False(json.RootElement.TryGetProperty("customer", out _));
+        Assert.False(json.RootElement.TryGetProperty("customerData", out _));
+    }
+
+    [Fact]
     public async Task MonthlyCheckoutUsesRegisteredCustomerWithoutEndDate()
     {
         var handler = new RecordingHttpMessageHandler();

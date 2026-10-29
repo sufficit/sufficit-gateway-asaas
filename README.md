@@ -136,3 +136,5 @@ dotnet test tests/Sufficit.Gateway.Asaas.Tests.csproj
 ```
 
 Os testes usam um `HttpMessageHandler` controlado e não acessam contas reais.
+
+- [Checkout recorrente para novo pagador](docs/activities/202610291125-hosted-recurring-new-payer.md).

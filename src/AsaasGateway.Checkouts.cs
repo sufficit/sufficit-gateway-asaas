@@ -204,8 +204,8 @@ public sealed partial class AsaasGateway : IAsaasCheckoutGateway
         ArgumentNullException.ThrowIfNull(request);
         if (request.MonthlyFirstDueDate.HasValue
             && (request.BillingTypes.Count != 1 || !request.BillingTypes.Contains(AsaasCheckoutBillingType.CreditCard)
-                || string.IsNullOrWhiteSpace(request.CustomerId) || !request.CustomerId.StartsWith("cus_", StringComparison.Ordinal)))
-            throw new ArgumentException("A monthly checkout requires an existing customer and credit card only.", nameof(request));
+                || request.CustomerId is not null && !request.CustomerId.StartsWith("cus_", StringComparison.Ordinal)))
+            throw new ArgumentException("A monthly checkout requires credit card only and a valid customer when provided.", nameof(request));
         if (request.BillingTypes.Count is < 1 or > 2
             || request.BillingTypes.Distinct().Count() != request.BillingTypes.Count)
         {
