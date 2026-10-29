@@ -49,6 +49,7 @@ public sealed class AsaasCheckoutRequest
     public Uri ExpiredUrl { get; set; } = null!;
     public IReadOnlyCollection<AsaasCheckoutItem> Items { get; set; } = [];
     public string? CustomerId { get; set; }
+    public AsaasCheckoutCustomerData? CustomerData { get; set; }
     public DateOnly? MonthlyFirstDueDate { get; set; }
 }
 

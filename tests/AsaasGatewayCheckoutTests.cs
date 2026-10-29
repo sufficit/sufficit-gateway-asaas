@@ -8,6 +8,29 @@ namespace Sufficit.Gateway.Asaas.Tests;
 public sealed class AsaasGatewayCheckoutTests
 {
     [Fact]
+    public async Task ReviewedCustomerDataUsesProviderFieldNamesWithoutCustomerId()
+    {
+        var h = new RecordingHttpMessageHandler();
+        h.EnqueueJson("""{"id":"test","link":"https://sandbox.asaas.com/test","status":"ACTIVE"}""");
+        var request = new AsaasCheckoutRequest
+        {
+            BillingTypes = [AsaasCheckoutBillingType.CreditCard], MonthlyFirstDueDate = new(2026,11,26),
+            ExternalReference = "review", SuccessUrl = new("https://example.com"), CancelUrl = new("https://example.com"), ExpiredUrl = new("https://example.com"),
+            Items = [new() { Name = "Monthly", Value = 50, Quantity = 1 }],
+            CustomerData = new() { Name = "Test Payer", Document = "52998224725", Email = "test@example.com", Phone = "4738010919",
+                Address = "Rua Teste", AddressNumber = "100", PostalCode = "01310100", Province = "Bela Vista" }
+        };
+        await GatewayTestFactory.CreateAsaas(h).CreateAsync(request, CreateContext(), default);
+        using var json = JsonDocument.Parse(Assert.Single(h.Requests).Body!);
+        Assert.False(json.RootElement.TryGetProperty("customer", out _));
+        Assert.Equal("4738010919", json.RootElement.GetProperty("customerData").GetProperty("phone").GetString());
+        Assert.Equal("52998224725", json.RootElement.GetProperty("customerData").GetProperty("cpfCnpj").GetString());
+        request.CustomerId = "cus_existing";
+        await Assert.ThrowsAsync<ArgumentException>(() => GatewayTestFactory.CreateAsaas(h).CreateAsync(request, CreateContext(), default));
+        Assert.Single(h.Requests);
+    }
+
+    [Fact]
     public async Task GetAccountReadsBeneficiaryIdentityWithoutMutation()
     {
         var handler = new RecordingHttpMessageHandler();

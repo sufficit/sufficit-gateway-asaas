@@ -67,6 +67,9 @@ public sealed partial class AsaasGateway : IAsaasCheckoutGateway
         CancellationToken cancellationToken)
     {
         ValidateCheckoutRequest(request);
+        if (request.CustomerData is not null && request.CustomerId is not null)
+            throw new ArgumentException("Use customer or customerData, never both.");
+        request.CustomerData?.Validate();
         ArgumentNullException.ThrowIfNull(context);
 
         var payload = new
@@ -77,6 +80,12 @@ public sealed partial class AsaasGateway : IAsaasCheckoutGateway
                 .ToArray(),
             chargeTypes = new[] { request.MonthlyFirstDueDate.HasValue ? "RECURRENT" : "DETACHED" },
             customer = request.CustomerId,
+            customerData = request.CustomerData is { } payer ? new
+            {
+                name = payer.Name, cpfCnpj = payer.Document, email = payer.Email, phone = payer.Phone,
+                address = payer.Address, addressNumber = payer.AddressNumber, postalCode = payer.PostalCode,
+                province = payer.Province, complement = NormalizeOptional(payer.Complement)
+            } : null,
             subscription = request.MonthlyFirstDueDate.HasValue ? new
             {
                 cycle = "MONTHLY",

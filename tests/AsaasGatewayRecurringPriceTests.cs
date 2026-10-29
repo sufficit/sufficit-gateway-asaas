@@ -18,6 +18,19 @@ public sealed class AsaasGatewayRecurringPriceTests
         }, hasMore=false }));
         h.EnqueueJson(JsonSerializer.Serialize(new { customer="cus_test", billingType="CREDIT_CARD", cycle="MONTHLY", status="ACTIVE", value, nextDueDate="2026-11-22" }));
     }
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task HostedPayerRequiresExactCheckoutBinding(bool matches)
+    {
+        var h = new RecordingHttpMessageHandler();
+        h.EnqueueJson(JsonSerializer.Serialize(new { data = new[] { new { customer = "cus_edited", checkoutSession = matches ? Checkout : Guid.NewGuid().ToString(),
+            billingType = "CREDIT_CARD", subscription = "sub_hosted" } }, hasMore = false }));
+        var task = GatewayTestFactory.CreateAsaas(h).GetRecurringCustomerAsync(Checkout, Context(), default);
+        if (matches) Assert.Equal("cus_edited", await task);
+        else await Assert.ThrowsAsync<InvalidOperationException>(() => task);
+    }
+
     [Fact]
     public async Task EmptyCheckoutFilterRecoversExactCheckoutFromPaginatedCustomerPayments()
     {
