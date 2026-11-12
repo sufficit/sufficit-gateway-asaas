@@ -140,3 +140,27 @@ Os testes usam um `HttpMessageHandler` controlado e não acessam contas reais.
 - [Checkout recorrente para novo pagador](docs/activities/202610291125-hosted-recurring-new-payer.md).
 
 - [Dados revisados para checkout hospedado e sincronização](docs/activities/202610291222-payer-review-sync.md).
+
+## Regra de fuso das datas do provedor
+
+Decisão do mantenedor em 12/11/2026: Efí e Asaas são provedores brasileiros.
+Datas/horários recebidos **sem fuso explícito** devem ser interpretados como
+**GMT−3 (UTC−03:00, Brasília)**, independentemente do fuso do servidor.
+
+- Respeitar `Z` ou qualquer offset explicitamente informado; não aplicar −03:00
+  novamente a um instante que já possui fuso.
+- Para normalizar um horário sem fuso, assumir −03:00 antes de converter para UTC.
+  Exemplo: `2026-11-03 07:00:00` corresponde a `2026-11-03T10:00:00Z`.
+- Quando uma data de recebimento sem hora precisar representar um instante,
+  a meia-noite de Brasília corresponde a `03:00:00Z` do mesmo dia.
+- Datas puramente civis, como vencimentos `DateOnly`, continuam datas civis;
+  não deslocar seu dia mediante conversão de fuso.
+- Relógios de captura/processamento não substituem recebimento ou confirmação.
+  O padrão GMT−3 é fixo; não presumir outro offset para dados históricos sem
+  evidência explícita do provedor.
+
+Estado da implementação: Os leitores atuais de webhooks de pagamentos/notas, Pix e checkout ainda usam
+`AssumeUniversal` quando o offset está ausente. Esses pontos estão marcados inline
+como pendência de implementação; esta documentação não os corrigiu.
+
+Registro: [atividade de documentação](docs/activities/202611121221-provider-date-timezone.md).

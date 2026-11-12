@@ -69,6 +69,10 @@ public sealed partial class AsaasGateway : IAsaasInvoiceWebhookGateway
         if (string.IsNullOrWhiteSpace(invoice.Id) || invoice.Id.Length > 64)
             throw new FormatException("The Asaas invoice webhook does not contain a valid invoice id.");
 
+        // Provider date contract (maintainer, 2026-11-12): Efí/Asaas values without
+        // a zone mean fixed UTC-03:00 (Brasília); explicit Z/offsets take precedence.
+        // TODO: this legacy AssumeUniversal parser still treats missing zones as UTC.
+        // Align parsing with README.md before relying on offset-less provider dates.
         var eventAt = GetString(root, "dateCreated");
         var eventAtUtc = DateTimeOffset.TryParse(
             eventAt,

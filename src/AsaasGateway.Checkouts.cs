@@ -286,6 +286,10 @@ public sealed partial class AsaasGateway : IAsaasCheckoutGateway
         return new Uri($"https://{host}/checkoutSession/show?id={Uri.EscapeDataString(checkoutId)}");
     }
 
+    // Provider date contract (maintainer, 2026-11-12): Efí/Asaas values without
+    // a zone mean fixed UTC-03:00 (Brasília); explicit Z/offsets take precedence.
+    // TODO: this legacy AssumeUniversal parser still treats missing zones as UTC.
+    // Align parsing with README.md before relying on offset-less provider dates.
     private static DateTimeOffset? ParseCheckoutDate(string? value)
         => DateTimeOffset.TryParse(
             value,

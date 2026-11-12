@@ -162,6 +162,10 @@ public sealed partial class AsaasGateway : IBankSlipProviderWebhookGateway
                     : null;
     }
 
+    // Provider date contract (maintainer, 2026-11-12): Efí/Asaas values without
+    // a zone mean fixed UTC-03:00 (Brasília); explicit Z/offsets take precedence.
+    // TODO: this legacy AssumeUniversal parser still treats missing zones as UTC.
+    // Align parsing with README.md before relying on offset-less provider dates.
     private static DateTime? TryGetDateTimeUtc(JsonElement element, string propertyName)
     {
         var value = GetString(element, propertyName);
