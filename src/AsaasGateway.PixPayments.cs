@@ -482,18 +482,9 @@ public sealed partial class AsaasGateway : IPixPaymentGateway
 
     private static string PixCustomerReference(Guid contextId) => $"checkout-customer:{contextId:N}";
 
-    // Provider date contract (maintainer, 2026-11-12): Efí/Asaas values without
-    // a zone mean fixed UTC-03:00 (Brasília); explicit Z/offsets take precedence.
-    // TODO: this legacy AssumeUniversal parser still treats missing zones as UTC.
-    // Align parsing with README.md before relying on offset-less provider dates.
     private static DateTimeOffset? ParsePixDate(string? value)
-        => DateTimeOffset.TryParse(
-            value,
-            CultureInfo.InvariantCulture,
-            DateTimeStyles.AssumeUniversal | DateTimeStyles.AdjustToUniversal,
-            out var parsed)
-                ? parsed
-                : null;
+        // Preserve the common provider offset/default rule in every capability.
+        => ParseProviderDate(value);
 
     private static PixPaymentStatus MapPixStatus(string providerStatus)
         => providerStatus.ToUpperInvariant() switch

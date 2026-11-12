@@ -159,8 +159,19 @@ Datas/horários recebidos **sem fuso explícito** devem ser interpretados como
   O padrão GMT−3 é fixo; não presumir outro offset para dados históricos sem
   evidência explícita do provedor.
 
-Estado da implementação: Os leitores atuais de webhooks de pagamentos/notas, Pix e checkout ainda usam
-`AssumeUniversal` quando o offset está ausente. Esses pontos estão marcados inline
-como pendência de implementação; esta documentação não os corrigiu.
+Estado da implementação: os leitores de webhooks de pagamentos/notas, Pix e
+checkout compartilham o parser de datas do provedor. Fuso explícito tem precedência;
+sem fuso, o instante usa UTC−03:00 fixo. A consulta de boletos usa o mesmo leitor de
+pagamentos. Datas inválidas continuam desconhecidas; vencimentos civis não passam
+pela conversão de instantes. A regra independe do fuso da máquina.
+
+Documentação oficial conferida em 12/11/2026:
+[recepção de webhooks](https://docs.asaas.com/docs/receba-eventos-do-asaas-no-seu-endpoint-de-webhook),
+[eventos de checkout](https://docs.asaas.com/docs/checkout-events) e
+[eventos de notas fiscais](https://docs.asaas.com/docs/webhook-para-notas-fiscais).
+Os exemplos apresentam `dateCreated` sem offset. Os guias consultados não enunciam
+uma regra global de GMT−3; o fallback é o contrato definido pelo mantenedor.
 
 Registro: [atividade de documentação](docs/activities/202611121221-provider-date-timezone.md).
+
+Pendência corrigida: [validação e publicação dos leitores de datas](docs/activities/202611121239-provider-date-parsing.md).
