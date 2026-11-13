@@ -102,6 +102,33 @@ public class AsaasGatewayInvoiceTests
     }
 
     [Fact]
+    public async Task ScheduleRejectionCarriesTheProviderReason()
+    {
+        var handler = new RecordingHttpMessageHandler();
+        handler.EnqueueJson("""{"errors":[{"code":"invalid_action","description":"E-mail do cliente incompleto."}]}""",
+            System.Net.HttpStatusCode.BadRequest);
+        var gateway = GatewayTestFactory.CreateAsaas(handler);
+        using var taxes = JsonDocument.Parse("""{"retainIss":false,"iss":2.0}""");
+
+        var error = await Assert.ThrowsAsync<AsaasGatewayException>(() => gateway.ScheduleInvoiceAsync(
+            new AsaasInvoiceScheduleRequest
+            {
+                CustomerId = "cus_test",
+                ServiceDescription = "Suporte",
+                Observations = "Teste",
+                Value = 10m,
+                EffectiveDate = new DateOnly(2026, 11, 13),
+                MunicipalServiceCode = "01.07.01",
+                Taxes = taxes.RootElement.Clone()
+            },
+            CreateContext(),
+            CancellationToken.None));
+
+        Assert.Equal("invalid_action", error.ErrorCode);
+        Assert.Contains("E-mail do cliente incompleto.", error.Message);
+    }
+
+    [Fact]
     public async Task InvoiceLifecycleUsesTheTypedProviderOperations()
     {
         var handler = new RecordingHttpMessageHandler();

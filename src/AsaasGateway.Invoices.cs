@@ -278,11 +278,14 @@ public sealed partial class AsaasGateway : IAsaasInvoiceGateway
         }
 
         var statusCode = (int)response.StatusCode;
-        var errorCode = await ReadErrorCodeAsync(response, cancellationToken).ConfigureAwait(false)
-            ?? $"asaas_http_{statusCode}";
+        // The provider reason (e.g. "E-mail do cliente incompleto.") is what the operator needs to act on.
+        var (providerCode, description) = await ReadErrorAsync(response, cancellationToken).ConfigureAwait(false);
+        var errorCode = providerCode ?? $"asaas_http_{statusCode}";
         throw new AsaasGatewayException(
             errorCode,
-            $"Asaas rejected the {operationLabel} operation.",
+            string.IsNullOrWhiteSpace(description)
+                ? $"Asaas rejected the {operationLabel} operation."
+                : $"Asaas rejected the {operationLabel} operation: {description.Trim()}",
             statusCode,
             retryAfter: ReadRetryAfter(response));
     }

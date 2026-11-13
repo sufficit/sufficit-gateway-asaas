@@ -108,6 +108,29 @@ public sealed partial class AsaasGateway
         return await JsonDocument.ParseAsync(stream, cancellationToken: cancellationToken).ConfigureAwait(false);
     }
 
+    /// <summary>First provider error code and description (pt-BR text from Asaas), read once.</summary>
+    private static async Task<(string? Code, string? Description)> ReadErrorAsync(
+        HttpResponseMessage response,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            using var document = await ReadJsonAsync(response, cancellationToken).ConfigureAwait(false);
+            var root = document.RootElement;
+            if (root.TryGetProperty("errors", out var errors)
+                && errors.ValueKind == JsonValueKind.Array
+                && errors.GetArrayLength() > 0)
+            {
+                return (GetString(errors[0], "code"), GetString(errors[0], "description"));
+            }
+            return (GetString(root, "code"), GetString(root, "description"));
+        }
+        catch (System.Text.Json.JsonException)
+        {
+            return (null, null);
+        }
+    }
+
     private static async Task<string?> ReadErrorCodeAsync(
         HttpResponseMessage response,
         CancellationToken cancellationToken)
