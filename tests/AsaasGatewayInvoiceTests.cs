@@ -102,6 +102,32 @@ public class AsaasGatewayInvoiceTests
     }
 
     [Fact]
+    public async Task StatementListsInvoiceFeesWithTheirInvoice()
+    {
+        var handler = new RecordingHttpMessageHandler();
+        handler.EnqueueJson("""
+            {"object":"list","hasMore":false,"totalCount":1,"data":[{"object":"financialTransaction","id":"ftn_1",
+             "value":-0.99,"type":"INVOICE_FEE","date":"2026-11-13","description":"Taxa de emissão","invoiceId":"inv_1"}]}
+            """);
+        var gateway = GatewayTestFactory.CreateAsaas(handler);
+
+        var page = await gateway.ListFinancialTransactionsAsync(new AsaasFinancialTransactionSearchParameters
+        {
+            StartDate = new DateOnly(2026, 11, 1),
+            FinishDate = new DateOnly(2026, 11, 13),
+            Offset = 100
+        }, CreateContext(), CancellationToken.None);
+
+        var line = Assert.Single(page.Data);
+        Assert.Equal("INVOICE_FEE", line.Type);
+        Assert.Equal(-0.99m, line.Value);
+        Assert.Equal("inv_1", line.InvoiceId);
+        Assert.Equal(new DateOnly(2026, 11, 13), line.Date);
+        Assert.Equal("https://api-sandbox.asaas.com/v3/financialTransactions?offset=100&limit=100&startDate=2026-11-01&finishDate=2026-11-13&order=asc",
+            handler.Requests[0].Uri.AbsoluteUri);
+    }
+
+    [Fact]
     public async Task ScheduleRejectionCarriesTheProviderReason()
     {
         var handler = new RecordingHttpMessageHandler();

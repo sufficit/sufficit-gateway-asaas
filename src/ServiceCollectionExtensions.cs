@@ -26,6 +26,8 @@ public static class ServiceCollectionExtensions
             serviceProvider => serviceProvider.GetRequiredService<AsaasGateway>());
         services.AddSingleton<IGatewayDiagnosticsGateway>(
             serviceProvider => serviceProvider.GetRequiredService<AsaasGateway>());
+        services.TryAddSingleton<IAsaasFinancialStatementGateway>(
+            provider => provider.GetRequiredService<AsaasGateway>());
         services.TryAddSingleton<IAsaasInvoiceGateway>(
             serviceProvider => serviceProvider.GetRequiredService<AsaasGateway>());
         services.TryAddSingleton<IAsaasPaymentGateway>(
