@@ -222,9 +222,10 @@ public sealed partial class AsaasGateway : IAsaasInvoiceGateway
             new("offset", parameters.Offset.ToString(CultureInfo.InvariantCulture)),
             new("limit", parameters.Limit.ToString(CultureInfo.InvariantCulture))
         };
-        // Asaas OpenAPI defines capitalized Ge/Le; lower-case variants can be silently ignored.
-        AddQueryValue(values, "effectiveDate[Ge]", parameters.EffectiveDateFrom?.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture));
-        AddQueryValue(values, "effectiveDate[Le]", parameters.EffectiveDateTo?.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture));
+        // Production check 2026-11-13: Asaas filters only with lower-case [ge]/[le] (387 invoices); the
+        // capitalized [Ge]/[Le] shown in the OpenAPI is silently ignored and returns every invoice (13,897).
+        AddQueryValue(values, "effectiveDate[ge]", parameters.EffectiveDateFrom?.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture));
+        AddQueryValue(values, "effectiveDate[le]", parameters.EffectiveDateTo?.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture));
         AddQueryValue(values, "payment", parameters.PaymentId);
         AddQueryValue(values, "installment", parameters.InstallmentId);
         AddQueryValue(values, "customer", parameters.CustomerId);
