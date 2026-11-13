@@ -73,10 +73,17 @@ public static class AsaasWebhookEventSets
         "CHECKOUT_PAID"
     };
 
+    /// <summary>Every NFS-e lifecycle event documented by Asaas (success and failure).</summary>
     public static IReadOnlyCollection<string> InvoiceLifecycle { get; } = new[]
     {
+        "INVOICE_CREATED",
+        "INVOICE_UPDATED",
+        "INVOICE_SYNCHRONIZED",
         "INVOICE_AUTHORIZED",
-        "INVOICE_CANCELED"
+        "INVOICE_PROCESSING_CANCELLATION",
+        "INVOICE_CANCELED",
+        "INVOICE_CANCELLATION_DENIED",
+        "INVOICE_ERROR"
     };
 
     public static IReadOnlyCollection<string> PaymentLifecycle { get; } = new[]
